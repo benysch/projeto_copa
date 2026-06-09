@@ -70,3 +70,18 @@ def test_provider_default_methods_empty():
     sp = StaticProvider()
     assert sp.fetch_results() == {}
     assert sp.resolve_placeholders() == {}
+
+
+def test_api_provider_delegates_and_requires_key():
+    from src.data.providers import ApiFootballProvider
+
+    provider = ApiFootballProvider(league=1, season=2026, api_key=None)
+    # Seleções/calendário vêm do provedor base, mesmo sem chave.
+    assert len(provider.load_teams()) > 0
+    assert len(provider.load_group_fixtures()) == 72
+    # Buscar resultados sem chave deve falhar de forma clara.
+    try:
+        provider.fetch_results()
+        assert False, "deveria exigir API_FOOTBALL_KEY"
+    except RuntimeError:
+        pass

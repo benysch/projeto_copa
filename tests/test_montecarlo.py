@@ -48,3 +48,21 @@ def test_stronger_team_has_higher_title_odds():
     p = result.probabilities
     # Espanha (Elo mais alto) deve ter mais chances de título que Gana.
     assert p["ESP"]["champion"] > p["GHA"]["champion"]
+
+
+def test_conditioning_on_played_games():
+    """Fixar jogos disputados altera as probabilidades (previsão 'viva')."""
+    from src.data.ratings import build_group_stage_matches
+
+    # África do Sul vence os 3 jogos do grupo A -> deve avançar sempre.
+    matches = build_group_stage_matches()
+    for m in matches:
+        if m.group != "A":
+            continue
+        if "RSA" in (m.home_team, m.away_team):
+            if m.home_team == "RSA":
+                m.set_real_score(5, 0)
+            else:
+                m.set_real_score(0, 5)
+    result = run_monte_carlo(teams, n_sims=1000, seed=5, group_matches=matches)
+    assert result.probabilities["RSA"]["qualify"] == 100.0

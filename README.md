@@ -87,7 +87,9 @@ A frescura dos dados vem de um **`DataProvider`** (`src/data/providers/`), a
 - **`StaticProvider`** — dados embutidos (default, offline).
 - **`LocalFeedProvider`** — lê resultados e resoluções de playoff de um JSON
   (`data/sample_feed.json`); modelo para um provedor de API real.
-- *Produção:* implementar a mesma interface sobre API-FOOTBALL / football-data.org.
+- **`ApiFootballProvider`** — template de produção para a API-FOOTBALL
+  (api-sports.io): requer `API_FOOTBALL_KEY` e acesso de rede. Busca os
+  resultados reais e mapeia-os para os nossos `match_id`.
 
 O **`PredictionEngine`** (`src/service/engine.py`) liga o provedor ao modelo:
 aplica os resultados reais, resolve as vagas de playoff e **recalcula** a
@@ -127,8 +129,12 @@ python -m pytest -q              # testes
   resultados reais e resolve playoffs, recalculando todas as fases.
 - [x] **Passo 5** — Servidor MCP (`fastmcp`) por cima do `PredictionEngine`
   (`src/mcp_server.py`), com 7 ferramentas.
-- [ ] Passo 6 — Provedor de API real (API-FOOTBALL/football-data.org) +
-  recalibração do Elo; condicionar o Monte Carlo aos jogos já disputados.
+- [x] **Monte Carlo condicionado** — a simulação parte dos jogos já disputados
+  (resultados reais fixados, só o resto é amostrado).
+- [x] **Template de provedor de API** — `ApiFootballProvider` pronto para ligar
+  em produção (chave + rede).
+- [ ] Pendente — ligar a API real em produção e recalibrar o Elo de forma
+  contínua à medida que entram resultados.
 
 > ℹ️ Seis vagas de playoff (UEFA A–D, Intercontinentais 1–2) entram como
 > placeholders com Elo provisório; previsões que as envolvem são marcadas como

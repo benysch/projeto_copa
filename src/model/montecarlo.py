@@ -29,7 +29,7 @@ from .bracket import (
     THIRD_PLACE,
     assign_third_slots,
 )
-from .schemas import Team
+from .schemas import Match, Team
 from .simulator import DEFAULT_PARAMS, ModelParams, expected_goals
 
 # Fases acumuladas para a tabela de confiança (em ordem de profundidade).
@@ -125,8 +125,14 @@ def simulate_once(
     rng: np.random.Generator,
     params: ModelParams,
     reached: dict[str, dict[str, int]],
+    fixed_results: list[tuple[int, int] | None] | None = None,
 ) -> None:
-    """Simula um torneio e incrementa `reached` para cada seleção/fase."""
+    """Simula um torneio e incrementa `reached` para cada seleção/fase.
+
+    `fixed_results` permite condicionar a simulação aos jogos JÁ disputados:
+    para cada índice com um placar fixo, usa-se esse resultado em vez de amostrar
+    (previsão 'viva' que parte do estado real do torneio).
+    """
     n = len(group_fixtures)
     gh = rng.poisson(group_lambdas[:, 0])
     ga = rng.poisson(group_lambdas[:, 1])
@@ -142,7 +148,10 @@ def simulate_once(
             if tid not in seen:
                 seen.add(tid)
                 members[group].append(tid)
-        hh, aa = int(gh[i]), int(ga[i])
+        if fixed_results is not None and fixed_results[i] is not None:
+            hh, aa = fixed_results[i]   # jogo já disputado: usa o placar real
+        else:
+            hh, aa = int(gh[i]), int(ga[i])
         gf[h] += hh; gf[a] += aa
         gd[h] += hh - aa; gd[a] += aa - hh
         if hh > aa:
@@ -217,14 +226,26 @@ def run_monte_carlo(
     n_sims: int = 10_000,
     params: ModelParams = DEFAULT_PARAMS,
     seed: int | None = None,
+    group_matches: list[Match] | None = None,
 ) -> MonteCarloResult:
-    """Corre `n_sims` torneios completos e devolve probabilidades por fase."""
+    """Corre `n_sims` torneios completos e devolve probabilidades por fase.
+
+    Se `group_matches` for fornecido, a simulação é CONDICIONADA aos jogos de
+    grupo já disputados (com `real_score`): esses resultados são fixados e só os
+    jogos por disputar são amostrados — é a previsão 'viva' a partir do estado
+    real do torneio. Sem ele, estima o cenário pré-torneio.
+    """
     teams = teams or build_teams()
     rng = np.random.default_rng(seed)
 
-    # Pré-calcula os 72 confrontos de grupo e os seus λ (fixos entre simulações).
+    source = group_matches if group_matches is not None else build_group_stage_matches()
     fixtures: list[tuple[str, str, str]] = [
-        (m.group, m.home_team, m.away_team) for m in build_group_stage_matches()
+        (m.group, m.home_team, m.away_team) for m in source
+    ]
+    fixed_results: list[tuple[int, int] | None] = [
+        (m.real_score.home_goals, m.real_score.away_goals)
+        if m.real_score is not None else None
+        for m in source
     ]
     lambdas = np.array(
         [expected_goals(teams[h], teams[a], params) for _, h, a in fixtures]
@@ -234,7 +255,7 @@ def run_monte_carlo(
         tid: {stage: 0 for stage in _STAGES} for tid in teams
     }
     for _ in range(n_sims):
-        simulate_once(teams, fixtures, lambdas, rng, params, reached)
+        simulate_once(teams, fixtures, lambdas, rng, params, reached, fixed_results)
 
     probabilities = {
         tid: {stage: round(100 * counts[stage] / n_sims, 1) for stage in _STAGES}

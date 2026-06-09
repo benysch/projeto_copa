@@ -105,10 +105,16 @@ class PredictionEngine:
     def probabilities(self, n_sims: int = 10_000, seed: int | None = None) -> MonteCarloResult:
         """Probabilidades de avanço/título por seleção (Monte Carlo).
 
-        Nota: a versão atual estima o cenário pré-torneio a partir dos ratings;
-        condicionar a simulação aos jogos já disputados é uma evolução prevista.
+        Condicionada aos jogos de grupo já disputados: os resultados reais são
+        fixados e apenas os jogos por disputar são amostrados.
         """
-        return run_monte_carlo(self.teams, n_sims=n_sims, params=self.params, seed=seed)
+        return run_monte_carlo(
+            self.teams,
+            n_sims=n_sims,
+            params=self.params,
+            seed=seed,
+            group_matches=self.group_matches,
+        )
 
     @property
     def champion(self) -> str | None:
