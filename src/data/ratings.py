@@ -1,57 +1,70 @@
-"""Ratings das seleções e fixtures da fase de grupos.
+"""Ratings das seleções e fixtures da fase de grupos — DADOS REAIS.
 
-ATENÇÃO: os valores Elo e a composição dos 12 grupos abaixo são ILUSTRATIVOS,
-servem para o simulador correr de ponta a ponta enquanto o sistema está em
-construção. Devem ser substituídos pelos dados oficiais do sorteio da Copa 2026
-e por ratings Elo calibrados (ver `calibrate` na lógica de referência) assim que
-a fonte de dados real estiver ligada ao pipeline.
+Fontes:
+  • Composição dos 12 grupos (A–L): sorteio oficial da Copa 2026.
+  • Ratings Elo: calibração sobre ~920 jogos internacionais reais
+    (Out/2023–Mai/2026), método Elo + recência + importância da competição
+    (adaptado da lógica de world-cup-2026-prediction-model).
 
-Elo aproximado baseado em ordens de grandeza públicas (eloratings.net) ~mai/2026.
+Notas:
+  • 6 vagas continuam por definir (vencedores dos playoffs UEFA A–D e
+    Intercontinentais 1–2). Entram como placeholders (`is_placeholder=True`)
+    com Elo provisório e DEVEM ser resolvidas quando os playoffs terminarem
+    — o sistema 'vivo' substitui o team_id e o Elo nessa altura.
+  • Anfitriãs (MEX/USA/CAN) recebem vantagem de casa nos seus jogos.
 """
 
 from __future__ import annotations
 
 from ..model.schemas import Match, Phase, Team
 
-# ---------------------------------------------------------------------------
-# Catálogo de seleções (team_id -> Team), organizado pelos 12 grupos A–L.
-# ---------------------------------------------------------------------------
-_RAW_GROUPS: dict[str, list[tuple[str, str, float, int]]] = {
-    # grupo: [(team_id, nome, elo, fifa_rank), ...]
-    "A": [("MEX", "México", 1885, 14), ("CAN", "Canadá", 1875, 30),
-          ("CRO", "Croácia", 1960, 10), ("KSA", "Arábia Saudita", 1660, 58)],
-    "B": [("USA", "Estados Unidos", 1830, 16), ("WAL", "País de Gales", 1800, 28),
-          ("SEN", "Senegal", 1900, 18), ("QAT", "Catar", 1640, 53)],
-    "C": [("ARG", "Argentina", 2120, 1), ("POL", "Polônia", 1820, 27),
-          ("JPN", "Japão", 1900, 17), ("RSA", "África do Sul", 1700, 60)],
-    "D": [("FRA", "França", 2080, 2), ("DEN", "Dinamarca", 1900, 21),
-          ("MAR", "Marrocos", 1920, 12), ("PAN", "Panamá", 1700, 41)],
-    "E": [("ESP", "Espanha", 2070, 3), ("ECU", "Equador", 1820, 23),
-          ("KOR", "Coreia do Sul", 1820, 22), ("GHA", "Gana", 1720, 70)],
-    "F": [("BRA", "Brasil", 2040, 5), ("SUI", "Suíça", 1850, 19),
-          ("NGA", "Nigéria", 1810, 39), ("UZB", "Uzbequistão", 1640, 57)],
-    "G": [("ENG", "Inglaterra", 2010, 4), ("SRB", "Sérvia", 1840, 31),
-          ("EGY", "Egito", 1790, 36), ("NZL", "Nova Zelândia", 1500, 86)],
-    "H": [("POR", "Portugal", 2030, 6), ("URU", "Uruguai", 1930, 11),
-          ("AUS", "Austrália", 1750, 24), ("CIV", "Costa do Marfim", 1780, 40)],
-    "I": [("NED", "Países Baixos", 1990, 7), ("AUT", "Áustria", 1850, 25),
-          ("TUN", "Tunísia", 1720, 50), ("JOR", "Jordânia", 1620, 64)],
-    "J": [("BEL", "Bélgica", 1980, 8), ("COL", "Colômbia", 1920, 13),
-          ("CMR", "Camarões", 1730, 52), ("CRC", "Costa Rica", 1700, 54)],
-    "K": [("ITA", "Itália", 1960, 9), ("ALG", "Argélia", 1760, 38),
-          ("PER", "Peru", 1740, 49), ("PAR", "Paraguai", 1760, 47)],
-    "L": [("GER", "Alemanha", 1970, 15), ("CHI", "Chile", 1760, 45),
-          ("IRN", "Irã", 1780, 20), ("HAI", "Haiti", 1480, 90)],
+# Elo provisório para vagas de playoff ainda não resolvidas.
+_UEFA_PLAYOFF_ELO = 1700.0   # vencedor típico de playoff europeu
+_IC_PLAYOFF_ELO = 1500.0     # vencedor típico de playoff intercontinental
+
+_HOSTS = {"MEX", "USA", "CAN"}
+
+# (code, nome, elo, is_placeholder) na ordem oficial de cada grupo (pote/seed).
+_RAW_GROUPS: dict[str, list[tuple[str, str, float, bool]]] = {
+    "A": [("MEX", "México", 1830, False), ("RSA", "África do Sul", 1562, False),
+          ("KOR", "Coreia do Sul", 1745, False), ("UEFA-D", "Vencedor Playoff UEFA D", _UEFA_PLAYOFF_ELO, True)],
+    "B": [("CAN", "Canadá", 1725, False), ("SUI", "Suíça", 1811, False),
+          ("QAT", "Catar", 1554, False), ("UEFA-A", "Vencedor Playoff UEFA A", _UEFA_PLAYOFF_ELO, True)],
+    "C": [("BRA", "Brasil", 1994, False), ("MAR", "Marrocos", 1875, False),
+          ("HAI", "Haiti", 1481, False), ("SCO", "Escócia", 1618, False)],
+    "D": [("USA", "Estados Unidos", 1794, False), ("PAR", "Paraguai", 1653, False),
+          ("AUS", "Austrália", 1769, False), ("UEFA-C", "Vencedor Playoff UEFA C", _UEFA_PLAYOFF_ELO, True)],
+    "E": [("GER", "Alemanha", 1928, False), ("ECU", "Equador", 1790, False),
+          ("CIV", "Costa do Marfim", 1706, False), ("CUW", "Curaçao", 1543, False)],
+    "F": [("NED", "Países Baixos", 1946, False), ("JPN", "Japão", 1851, False),
+          ("TUN", "Tunísia", 1666, False), ("UEFA-B", "Vencedor Playoff UEFA B", _UEFA_PLAYOFF_ELO, True)],
+    "G": [("BEL", "Bélgica", 1872, False), ("IRN", "Irã", 1735, False),
+          ("EGY", "Egito", 1672, False), ("NZL", "Nova Zelândia", 1569, False)],
+    "H": [("ESP", "Espanha", 2075, False), ("URU", "Uruguai", 1833, False),
+          ("KSA", "Arábia Saudita", 1620, False), ("CPV", "Cabo Verde", 1551, False)],
+    "I": [("FRA", "França", 2042, False), ("SEN", "Senegal", 1830, False),
+          ("NOR", "Noruega", 1814, False), ("IC-2", "Vencedor Playoff Interc. 2", _IC_PLAYOFF_ELO, True)],
+    "J": [("ARG", "Argentina", 2064, False), ("AUT", "Áustria", 1795, False),
+          ("ALG", "Argélia", 1676, False), ("JOR", "Jordânia", 1515, False)],
+    "K": [("POR", "Portugal", 1935, False), ("COL", "Colômbia", 1884, False),
+          ("UZB", "Uzbequistão", 1638, False), ("IC-1", "Vencedor Playoff Interc. 1", _IC_PLAYOFF_ELO, True)],
+    "L": [("ENG", "Inglaterra", 1982, False), ("CRO", "Croácia", 1878, False),
+          ("GHA", "Gana", 1635, False), ("PAN", "Panamá", 1582, False)],
 }
 
 
 def build_teams() -> dict[str, Team]:
-    """Constrói o dicionário team_id -> Team a partir do catálogo bruto."""
+    """Constrói o dicionário team_id -> Team a partir do sorteio oficial."""
     teams: dict[str, Team] = {}
     for group, rows in _RAW_GROUPS.items():
-        for team_id, name, elo, rank in rows:
-            teams[team_id] = Team(
-                team_id=team_id, name=name, group=group, elo=elo, fifa_rank=rank
+        for code, name, elo, placeholder in rows:
+            teams[code] = Team(
+                team_id=code,
+                name=name,
+                group=group,
+                elo=elo,
+                is_host=code in _HOSTS,
+                is_placeholder=placeholder,
             )
     return teams
 
@@ -59,8 +72,9 @@ def build_teams() -> dict[str, Team]:
 def build_first_round_matches() -> list[Match]:
     """Gera os jogos da PRIMEIRA RODADA de cada grupo (matchday 1).
 
-    Convenção FIFA: na 1ª rodada jogam-se equipa1 x equipa2 e equipa3 x equipa4.
-    Resultam 24 partidas (12 grupos x 2 jogos).
+    Convenção FIFA de calendário: na 1ª rodada jogam-se seed1 x seed2 e
+    seed3 x seed4. Resultam 24 partidas (12 grupos x 2 jogos). Seis envolvem
+    uma vaga de playoff (TBD) e ficam com previsão PROVISÓRIA até resolução.
     """
     matches: list[Match] = []
     for group, rows in _RAW_GROUPS.items():

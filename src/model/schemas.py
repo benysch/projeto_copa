@@ -78,9 +78,15 @@ class Team(BaseModel):
     # Força estatística (ver simulator.expected_goals).
     elo: float = Field(..., description="Rating Elo de futebol (base do modelo).")
     fifa_rank: Optional[int] = None
-    # Modificadores opcionais (forma recente / disponibilidade do plantel).
+    # Ajuste de forma recente, em PONTOS DE ELO (somado ao rating). Ex.: +25/-25.
     form_modifier: float = Field(
-        default=0.0, description="Ajuste log de forma recente (~[-0.1, 0.1])."
+        default=0.0, description="Ajuste de forma recente em pontos de Elo."
+    )
+    # Seleção anfitriã (México/EUA/Canadá) recebe vantagem de casa nos seus jogos.
+    is_host: bool = Field(default=False, description="Anfitriã (vantagem de casa).")
+    # Vaga ainda por definir (vencedor de playoff): Elo é provisório até resolver.
+    is_placeholder: bool = Field(
+        default=False, description="Vaga TBD (playoff) com Elo provisório."
     )
 
     def __str__(self) -> str:  # pragma: no cover - apenas apresentação

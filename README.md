@@ -43,10 +43,20 @@ src/
     schemas.py     # Passo 1: Match, MatchPrediction, Team, Phase, Status
     simulator.py   # Passo 2: motor Elo->Poisson/Dixon-Coles + Monte Carlo
   data/
-    ratings.py     # ratings Elo (ILUSTRATIVOS) e fixtures da 1ª rodada
+    ratings.py     # sorteio oficial + Elo calibrado + fixtures da 1ª rodada
 tests/
   test_simulator.py
 ```
+
+## Dados e modelo
+
+- **Grupos (A–L):** composição do sorteio oficial da Copa 2026. Seis vagas
+  (playoffs UEFA A–D e Intercontinentais 1–2) ainda por definir entram como
+  placeholders com Elo provisório, resolvidos quando os playoffs terminarem.
+- **Ratings Elo:** calibrados sobre ~920 internacionais reais (Out/2023–Mai/2026),
+  ponderados por recência e importância da competição.
+- **Fórmula λ:** `clamp(1.35 + Δrating/400, [0.3, 3.5])`; Dixon-Coles ρ = −0.13.
+- **Vantagem de casa:** +75 de Elo apenas para as anfitriãs (MEX/USA/CAN).
 
 ## Como correr
 
@@ -60,11 +70,12 @@ python -m pytest -q             # testes
 
 - [x] **Passo 1** — Estruturas de dados (`schemas.py`).
 - [x] **Passo 2** — Esqueleto do simulador para a 1ª rodada dos grupos.
+- [x] **Dados reais** — sorteio oficial + Elo calibrado (920 jogos) ligados.
 - [ ] Passo 3 — Classificação dos grupos + 8 melhores terceiros → chaveamento.
 - [ ] Passo 4 — Propagação Monte Carlo das fases eliminatórias.
 - [ ] Passo 5 — Servidor MCP (`fastmcp`) com as ferramentas.
-- [ ] Passo 6 — Calibração dos ratings Elo com dados reais.
+- [ ] Passo 6 — Resolver as 6 vagas de playoff e recalibrar com novos jogos.
 
-> ⚠️ Os ratings Elo e a composição dos grupos em `src/data/ratings.py` são
-> **ilustrativos** para validar o pipeline. Substituir pelos dados oficiais do
-> sorteio e por Elo calibrado antes de uso real.
+> ℹ️ Seis vagas de playoff (UEFA A–D, Intercontinentais 1–2) entram como
+> placeholders com Elo provisório; previsões que as envolvem são marcadas como
+> PROVISÓRIAS até os playoffs serem disputados.

@@ -26,12 +26,13 @@ from .schemas import Match, MatchPrediction, Outcome, Score, Team
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True)
 class ModelParams:
-    base_goals: float = 1.35      # média de gols por equipa (μ) numa partida média
-    elo_scale: float = 0.0010     # sensibilidade dos gols à diferença de Elo
-    ref_elo: float = 1850.0       # Elo de referência (~média do torneio)
-    home_advantage: float = 0.0   # γ em escala log; 0 = campo neutro (default WC)
-    dixon_coles_rho: float = -0.08  # ρ: corrige excesso de 0-0/1-1 da Poisson pura
-    max_goals: int = 10           # truncagem da grade de placares
+    base_goals: float = 1.35       # λ base de uma partida equilibrada (Maher/DC)
+    elo_divisor: float = 400.0     # 400 pts de Elo ~ +1 gol esperado de supremacia
+    min_lambda: float = 0.3        # piso de λ (mantém variância realista)
+    max_lambda: float = 3.5        # teto de λ
+    dixon_coles_rho: float = -0.13  # ρ: corrige excesso de 0-0/1-1 (calibrado, ~-0.13)
+    home_advantage: float = 75.0   # bónus de Elo só para anfitriãs (MEX/USA/CAN)
+    max_goals: int = 8             # truncagem da grade de placares (0–8 por lado)
 
 
 DEFAULT_PARAMS = ModelParams()
@@ -44,28 +45,26 @@ def expected_goals(
     home: Team,
     away: Team,
     params: ModelParams = DEFAULT_PARAMS,
-    neutral: bool = True,
 ) -> tuple[float, float]:
     """Converte ratings Elo em gols esperados (λ_casa, λ_fora).
 
-    Modelo log-linear estilo Maher/Dixon-Coles:
-        log λ_casa = log μ + ataque_casa - defesa_fora + γ
-        log λ_fora = log μ + ataque_fora - defesa_casa
+    Modelo linear de supremacia (Elo → λ), calibrado em ~920 internacionais:
+        λ = clamp(base_goals + diferença_de_rating / 400, [min, max])
 
-    Ataque e defesa são derivados do Elo (relativo à referência) e ajustados
-    pela forma recente de cada seleção.
+    A vantagem de casa só se aplica quando a equipa da casa é anfitriã do
+    torneio (MEX/USA/CAN); o adversário sofre metade desse bónus, em sentido
+    inverso — convenção do modelo de referência.
     """
-    att_home = params.elo_scale * (home.elo - params.ref_elo) + home.form_modifier
-    att_away = params.elo_scale * (away.elo - params.ref_elo) + away.form_modifier
-    # Defesa: quanto mais forte a equipa, mais reduz os gols do adversário.
-    def_home = params.elo_scale * (home.elo - params.ref_elo)
-    def_away = params.elo_scale * (away.elo - params.ref_elo)
+    home_bonus = params.home_advantage if home.is_host else 0.0
+    rating_home = home.elo + home.form_modifier
+    rating_away = away.elo + away.form_modifier
 
-    gamma = params.home_advantage if not neutral else 0.0
+    def _lam(attack: float, defense: float, bonus: float) -> float:
+        lam = params.base_goals + (attack + bonus - defense) / params.elo_divisor
+        return max(params.min_lambda, min(params.max_lambda, lam))
 
-    log_mu = math.log(params.base_goals)
-    lambda_home = math.exp(log_mu + att_home - def_away + gamma)
-    lambda_away = math.exp(log_mu + att_away - def_home)
+    lambda_home = _lam(rating_home, rating_away, home_bonus)
+    lambda_away = _lam(rating_away, rating_home, -home_bonus / 2)
     return lambda_home, lambda_away
 
 
@@ -172,7 +171,6 @@ def predict_match(
     away: Team,
     params: ModelParams = DEFAULT_PARAMS,
     knockout: bool = False,
-    neutral: bool = True,
 ) -> MatchPrediction:
     """Produz a previsão completa de uma partida (placar, vencedor, confiança).
 
@@ -181,7 +179,7 @@ def predict_match(
     (a massa de empate é redistribuída proporcionalmente entre casa e fora, o
     que aproxima a resolução por prorrogação/pênaltis de forma neutra).
     """
-    lambda_home, lambda_away = expected_goals(home, away, params, neutral=neutral)
+    lambda_home, lambda_away = expected_goals(home, away, params)
     matrix = score_matrix(lambda_home, lambda_away, params)
     p_home, p_draw, p_away = _outcome_probabilities(matrix)
     top = _top_scorelines(matrix)
@@ -314,19 +312,25 @@ def _demo() -> None:  # pragma: no cover - apresentação
     teams = build_teams()
     matches = predict_first_round(build_first_round_matches(), teams)
 
-    print("\n=== PREVISÕES — 1ª RODADA DA FASE DE GRUPOS (ilustrativo) ===\n")
-    header = f"{'Jogo':<6}{'Partida':<34}{'Placar':<8}{'Vencedor':<12}{'Conf.':>6}"
+    print("\n=== PREVISÕES — 1ª RODADA DA FASE DE GRUPOS (sorteio oficial) ===\n")
+    header = f"{'Jogo':<6}{'Partida':<40}{'Placar':<8}{'Vencedor':<14}{'Conf.':>6}"
     print(header)
     print("-" * len(header))
+    has_provisional = False
     for m in matches:
         h, a = teams[m.home_team], teams[m.away_team]
         pred = m.prediction
         winner = teams[pred.expected_winner].name if pred.expected_winner else "Empate"
-        confronto = f"{h.name} x {a.name}"
+        provisional = h.is_placeholder or a.is_placeholder
+        flag = " *" if provisional else ""
+        has_provisional = has_provisional or provisional
+        confronto = f"{h.name} x {a.name}{flag}"
         print(
-            f"{m.match_id:<6}{confronto:<34}{str(pred.predicted_score):<8}"
-            f"{winner:<12}{pred.confidence_level:>5.1f}%"
+            f"{m.match_id:<6}{confronto:<40}{str(pred.predicted_score):<8}"
+            f"{winner:<14}{pred.confidence_level:>5.1f}%"
         )
+    if has_provisional:
+        print("\n* previsão PROVISÓRIA — envolve vaga de playoff ainda por definir.")
     print()
 
 
