@@ -1,0 +1,4 @@
+# Núcleo do sistema de previsão Copa 2026
+pydantic>=2.6        # Schemas / validação das estruturas de dados (Passo 1)
+numpy>=1.24          # Amostragem Poisson e simulações de Monte Carlo
+fastmcp>=2.0         # Servidor MCP que expõe as ferramentas (fase posterior)
