@@ -48,11 +48,27 @@ src/
     montecarlo.py  # Passo 4: milhares de torneios -> probabilidades por fase
   data/
     ratings.py     # sorteio oficial + Elo calibrado + fixtures dos grupos
+    providers/     # camada de dados: estática | feed local | (API em produção)
+  service/
+    engine.py      # motor 'vivo': aplica resultados reais -> recalcula tudo
 tests/
-  test_simulator.py
-  test_tournament.py
-  test_montecarlo.py
+  test_simulator.py  test_tournament.py  test_montecarlo.py  test_engine.py
 ```
+
+## Dados ao vivo (o que torna o sistema "vivo")
+
+A frescura dos dados vem de um **`DataProvider`** (`src/data/providers/`), a
+única fronteira com a origem dos dados:
+
+- **`StaticProvider`** — dados embutidos (default, offline).
+- **`LocalFeedProvider`** — lê resultados e resoluções de playoff de um JSON
+  (`data/sample_feed.json`); modelo para um provedor de API real.
+- *Produção:* implementar a mesma interface sobre API-FOOTBALL / football-data.org.
+
+O **`PredictionEngine`** (`src/service/engine.py`) liga o provedor ao modelo:
+aplica os resultados reais, resolve as vagas de playoff e **recalcula** a
+classificação, o chaveamento e a progressão. É o núcleo que o servidor MCP
+(Passo 5) irá expor via `get_phase_predictions` e `update_real_score`.
 
 ## Dados e modelo
 
@@ -83,8 +99,11 @@ python -m pytest -q              # testes
   → progressão até à final (`standings.py`, `bracket.py`, `tournament.py`).
 - [x] **Passo 4** — Monte Carlo: milhares de torneios → probabilidades de
   avançar/oitavas/quartas/semis/final/título por seleção (`montecarlo.py`).
-- [ ] Passo 5 — Servidor MCP (`fastmcp`) com as ferramentas.
-- [ ] Passo 6 — Resolver as 6 vagas de playoff e recalibrar com novos jogos.
+- [x] **Camada de dados 'viva'** — `DataProvider` + `PredictionEngine`: aplica
+  resultados reais e resolve playoffs, recalculando todas as fases.
+- [ ] Passo 5 — Servidor MCP (`fastmcp`) por cima do `PredictionEngine`.
+- [ ] Passo 6 — Provedor de API real (API-FOOTBALL/football-data.org) +
+  recalibração do Elo; condicionar o Monte Carlo aos jogos já disputados.
 
 > ℹ️ Seis vagas de playoff (UEFA A–D, Intercontinentais 1–2) entram como
 > placeholders com Elo provisório; previsões que as envolvem são marcadas como
