@@ -45,11 +45,13 @@ src/
     standings.py   # Passo 3: classificação dos grupos + melhores terceiros
     bracket.py     # Passo 3: chaveamento oficial (32-avos -> final) + progressão
     tournament.py  # Passo 3: orquestração do torneio completo + relatório
+    montecarlo.py  # Passo 4: milhares de torneios -> probabilidades por fase
   data/
     ratings.py     # sorteio oficial + Elo calibrado + fixtures dos grupos
 tests/
   test_simulator.py
   test_tournament.py
+  test_montecarlo.py
 ```
 
 ## Dados e modelo
@@ -68,6 +70,7 @@ tests/
 pip install -r requirements.txt
 python -m src.model.simulator    # demo: previsões da 1ª rodada dos grupos
 python -m src.model.tournament   # torneio completo: grupos -> chaveamento -> campeão
+python -m src.model.montecarlo   # 10.000 torneios -> probabilidades por fase
 python -m pytest -q              # testes
 ```
 
@@ -78,7 +81,8 @@ python -m pytest -q              # testes
 - [x] **Dados reais** — sorteio oficial + Elo calibrado (920 jogos) ligados.
 - [x] **Passo 3** — Classificação + 8 melhores terceiros → chaveamento oficial
   → progressão até à final (`standings.py`, `bracket.py`, `tournament.py`).
-- [ ] Passo 4 — Propagação Monte Carlo das fases eliminatórias.
+- [x] **Passo 4** — Monte Carlo: milhares de torneios → probabilidades de
+  avançar/oitavas/quartas/semis/final/título por seleção (`montecarlo.py`).
 - [ ] Passo 5 — Servidor MCP (`fastmcp`) com as ferramentas.
 - [ ] Passo 6 — Resolver as 6 vagas de playoff e recalibrar com novos jogos.
 
