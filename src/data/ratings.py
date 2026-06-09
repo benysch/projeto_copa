@@ -69,26 +69,43 @@ def build_teams() -> dict[str, Team]:
     return teams
 
 
+# Calendário round-robin de um grupo de 4 (índices), por rodada (matchday).
+_ROUND_ROBIN: dict[int, list[tuple[int, int]]] = {
+    1: [(0, 1), (2, 3)],
+    2: [(0, 2), (3, 1)],
+    3: [(0, 3), (1, 2)],
+}
+
+
 def build_first_round_matches() -> list[Match]:
     """Gera os jogos da PRIMEIRA RODADA de cada grupo (matchday 1).
 
-    Convenção FIFA de calendário: na 1ª rodada jogam-se seed1 x seed2 e
-    seed3 x seed4. Resultam 24 partidas (12 grupos x 2 jogos). Seis envolvem
-    uma vaga de playoff (TBD) e ficam com previsão PROVISÓRIA até resolução.
+    Na 1ª rodada jogam-se seed1 x seed2 e seed3 x seed4. Resultam 24 partidas
+    (12 grupos x 2 jogos). Seis envolvem uma vaga de playoff (TBD) e ficam com
+    previsão PROVISÓRIA até resolução.
+    """
+    return [m for m in build_group_stage_matches() if m.matchday == 1]
+
+
+def build_group_stage_matches() -> list[Match]:
+    """Gera os 72 jogos da fase de grupos (12 grupos x round-robin de 6).
+
+    O conjunto de confrontos é o que determina a classificação; a ordem exacta
+    do calendário oficial pode ser ligada depois sem alterar as tabelas finais.
     """
     matches: list[Match] = []
     for group, rows in _RAW_GROUPS.items():
         ids = [r[0] for r in rows]
-        pairings = [(ids[0], ids[1]), (ids[2], ids[3])]
-        for idx, (home, away) in enumerate(pairings, start=1):
-            matches.append(
-                Match(
-                    match_id=f"{group}{idx}",
-                    phase=Phase.GROUP_STAGE,
-                    home_team=home,
-                    away_team=away,
-                    group=group,
-                    matchday=1,
+        for matchday, pairings in _ROUND_ROBIN.items():
+            for slot, (h, a) in enumerate(pairings, start=1):
+                matches.append(
+                    Match(
+                        match_id=f"{group}{matchday}{slot}",
+                        phase=Phase.GROUP_STAGE,
+                        home_team=ids[h],
+                        away_team=ids[a],
+                        group=group,
+                        matchday=matchday,
+                    )
                 )
-            )
     return matches

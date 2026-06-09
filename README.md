@@ -42,10 +42,14 @@ src/
   model/
     schemas.py     # Passo 1: Match, MatchPrediction, Team, Phase, Status
     simulator.py   # Passo 2: motor Elo->Poisson/Dixon-Coles + Monte Carlo
+    standings.py   # Passo 3: classificação dos grupos + melhores terceiros
+    bracket.py     # Passo 3: chaveamento oficial (32-avos -> final) + progressão
+    tournament.py  # Passo 3: orquestração do torneio completo + relatório
   data/
-    ratings.py     # sorteio oficial + Elo calibrado + fixtures da 1ª rodada
+    ratings.py     # sorteio oficial + Elo calibrado + fixtures dos grupos
 tests/
   test_simulator.py
+  test_tournament.py
 ```
 
 ## Dados e modelo
@@ -62,8 +66,9 @@ tests/
 
 ```bash
 pip install -r requirements.txt
-python -m src.model.simulator   # demo: previsões da 1ª rodada dos grupos
-python -m pytest -q             # testes
+python -m src.model.simulator    # demo: previsões da 1ª rodada dos grupos
+python -m src.model.tournament   # torneio completo: grupos -> chaveamento -> campeão
+python -m pytest -q              # testes
 ```
 
 ## Estado / Roadmap
@@ -71,7 +76,8 @@ python -m pytest -q             # testes
 - [x] **Passo 1** — Estruturas de dados (`schemas.py`).
 - [x] **Passo 2** — Esqueleto do simulador para a 1ª rodada dos grupos.
 - [x] **Dados reais** — sorteio oficial + Elo calibrado (920 jogos) ligados.
-- [ ] Passo 3 — Classificação dos grupos + 8 melhores terceiros → chaveamento.
+- [x] **Passo 3** — Classificação + 8 melhores terceiros → chaveamento oficial
+  → progressão até à final (`standings.py`, `bracket.py`, `tournament.py`).
 - [ ] Passo 4 — Propagação Monte Carlo das fases eliminatórias.
 - [ ] Passo 5 — Servidor MCP (`fastmcp`) com as ferramentas.
 - [ ] Passo 6 — Resolver as 6 vagas de playoff e recalibrar com novos jogos.
@@ -79,3 +85,10 @@ python -m pytest -q             # testes
 > ℹ️ Seis vagas de playoff (UEFA A–D, Intercontinentais 1–2) entram como
 > placeholders com Elo provisório; previsões que as envolvem são marcadas como
 > PROVISÓRIAS até os playoffs serem disputados.
+
+> ⚠️ **Modo determinístico vs. Monte Carlo:** o chaveamento atual usa o
+> resultado *mais provável* de cada jogo, pelo que o favorito vence sempre e a
+> classificação fica "limpa" (1º com 9 pts, etc.). Isto dá o cenário modal,
+> não as probabilidades reais de avanço/título — é exatamente o que o **Passo 4**
+> (Monte Carlo, milhares de torneios) introduz, gerando os graus de confiança
+> de cada seleção chegar a cada fase.
