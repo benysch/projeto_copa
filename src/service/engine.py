@@ -41,11 +41,20 @@ class PredictionEngine:
     # Carregamento e recálculo
     # ------------------------------------------------------------------
     def reload(self) -> None:
-        """(Re)carrega tudo do provedor e recalcula o torneio do zero."""
+        """(Re)carrega tudo do provedor e recalcula o torneio do zero.
+
+        Mantém os resultados inseridos manualmente (`update_real_score`); use
+        `reset()` para os descartar também.
+        """
         self.teams = self.provider.load_teams()
         self.group_matches = self.provider.load_group_fixtures()
         self._apply_placeholder_resolutions()
         self.refresh()
+
+    def reset(self) -> None:
+        """Descarta os updates manuais e recarrega do provedor (estado limpo)."""
+        self._manual_results.clear()
+        self.reload()
 
     def refresh(self) -> None:
         """Reaplica os resultados conhecidos e recalcula todas as fases."""

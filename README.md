@@ -51,8 +51,32 @@ src/
     providers/     # camada de dados: estática | feed local | (API em produção)
   service/
     engine.py      # motor 'vivo': aplica resultados reais -> recalcula tudo
+    serializers.py # partidas/previsões -> dicts JSON
+  mcp_server.py    # Passo 5: servidor MCP (fastmcp) por cima do engine
 tests/
-  test_simulator.py  test_tournament.py  test_montecarlo.py  test_engine.py
+  test_simulator.py   test_tournament.py   test_montecarlo.py
+  test_engine.py      test_mcp_server.py
+```
+
+## Servidor MCP
+
+Expõe o motor vivo como ferramentas MCP (`get_phase_predictions`,
+`update_real_score`, `get_group_standings`, `get_title_probabilities`,
+`resolve_playoff`, `get_match`, `list_phases`).
+
+```bash
+python -m src.mcp_server          # stdio (default)
+fastmcp run src/mcp_server.py     # via CLI do fastmcp
+```
+
+Configuração num cliente MCP (ex.: Claude Desktop), em `mcpServers`:
+
+```json
+{
+  "mcpServers": {
+    "wc2026": { "command": "python", "args": ["-m", "src.mcp_server"] }
+  }
+}
 ```
 
 ## Dados ao vivo (o que torna o sistema "vivo")
@@ -101,7 +125,8 @@ python -m pytest -q              # testes
   avançar/oitavas/quartas/semis/final/título por seleção (`montecarlo.py`).
 - [x] **Camada de dados 'viva'** — `DataProvider` + `PredictionEngine`: aplica
   resultados reais e resolve playoffs, recalculando todas as fases.
-- [ ] Passo 5 — Servidor MCP (`fastmcp`) por cima do `PredictionEngine`.
+- [x] **Passo 5** — Servidor MCP (`fastmcp`) por cima do `PredictionEngine`
+  (`src/mcp_server.py`), com 7 ferramentas.
 - [ ] Passo 6 — Provedor de API real (API-FOOTBALL/football-data.org) +
   recalibração do Elo; condicionar o Monte Carlo aos jogos já disputados.
 
