@@ -105,11 +105,17 @@ A frescura dos dados vem de um **`DataProvider`** (`src/data/providers/`), a
 - **`ApiFootballProvider`** — template de produção para a API-FOOTBALL
   (api-sports.io): requer `API_FOOTBALL_KEY` e acesso de rede. Busca os
   resultados reais e mapeia-os para os nossos `match_id`.
+- **`LiveScoreMcpProvider`** — ingestão AUTOMÁTICA e grátis agindo como cliente
+  MCP de um servidor de placares (ex.: livescore-mcp). Busca os jogos da Copa,
+  resolve nomes -> códigos e mapeia por par de seleções para os nossos `match_id`
+  (orientação do placar corrigida). Requer rede ao host em produção.
 
 O **`PredictionEngine`** (`src/service/engine.py`) liga o provedor ao modelo:
-aplica os resultados reais, resolve as vagas de playoff e **recalcula** a
-classificação, o chaveamento e a progressão. É o núcleo que o servidor MCP
-(Passo 5) irá expor via `get_phase_predictions` e `update_real_score`.
+aplica os resultados reais (de grupos **e** eliminatórias), resolve as vagas de
+playoff e **recalcula** a classificação, o chaveamento e a progressão. Os
+resultados reais das eliminatórias propagam-se pelas fases — quem realmente venceu
+avança, não o favorito previsto. É o núcleo que o servidor MCP expõe via
+`get_phase_predictions` e `update_real_score`.
 
 ## Dados e modelo
 

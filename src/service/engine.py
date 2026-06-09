@@ -75,9 +75,12 @@ class PredictionEngine:
                 m._sync_status()
 
         # Classificação -> chaveamento -> progressão eliminatória.
+        # Resultados reais das eliminatórias ("m73"...) propagam-se pelas fases.
         self.standings = compute_all_standings(self.group_matches, self.teams)
         r32 = build_round_of_32(self.standings, self.teams)
-        self.rounds = simulate_knockouts(r32, self.teams, self.params)
+        self.rounds = simulate_knockouts(
+            r32, self.teams, self.params, real_results=results
+        )
 
     def _apply_placeholder_resolutions(self) -> None:
         """Substitui vagas de playoff já decididas pela seleção real."""

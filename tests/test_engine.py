@@ -57,6 +57,30 @@ def test_manual_update_takes_priority_over_feed(tmp_path):
     assert eng._find_match("A11").real_score.away_goals == 1
 
 
+def test_knockout_result_propagates_to_next_phase():
+    """Resultado real de um 32-avos faz o vencedor real avançar às oitavas."""
+    eng = PredictionEngine(StaticProvider())
+    m73 = eng._find_match("m73")
+    fav = m73.prediction.expected_winner
+    underdog = m73.away_team if fav == m73.home_team else m73.home_team
+    score = (0, 3) if underdog == m73.away_team else (3, 0)
+    eng.update_real_score("m73", *score)
+    # m89 (oitavas) = vencedor de m73 x vencedor de m74.
+    m89 = eng._find_match("m89")
+    assert underdog in (m89.home_team, m89.away_team)
+    assert fav not in (m89.home_team, m89.away_team)
+
+
+def test_knockout_real_result_marks_finished():
+    eng = PredictionEngine(StaticProvider())
+    eng.update_real_score("m73", 2, 1)
+    m73 = eng._find_match("m73")
+    assert m73.is_finished
+    assert m73.real_score.home_goals == 2
+    # A previsão continua presente (para exibir confiança vs. realidade).
+    assert m73.prediction is not None
+
+
 def test_unknown_match_update_raises():
     eng = PredictionEngine(StaticProvider())
     try:

@@ -145,30 +145,53 @@ _PHASE_OF = {
 
 
 def _winner_loser(match: Match) -> tuple[str, str]:
-    """(vencedor, perdedor) de um jogo eliminatório já previsto."""
+    """(vencedor, perdedor) de um jogo eliminatório.
+
+    Usa o resultado REAL quando disponível; em empate no tempo normal (decidido
+    nos pênaltis), recorre ao favorito do modelo como aproximação. Caso contrário,
+    usa o vencedor previsto.
+    """
+    other = lambda w: match.away_team if w == match.home_team else match.home_team
+    if match.real_score is not None:
+        s = match.real_score
+        if s.home_goals > s.away_goals:
+            return match.home_team, match.away_team
+        if s.away_goals > s.home_goals:
+            return match.away_team, match.home_team
+        # Empate -> pênaltis: sem o vencedor no placar, usa o favorito do modelo.
+        w = match.prediction.expected_winner
+        return w, other(w)
     w = match.prediction.expected_winner
-    loser = match.away_team if w == match.home_team else match.home_team
-    return w, loser
+    return w, other(w)
 
 
 def simulate_knockouts(
     round_of_32: list[Match],
     teams: dict[str, Team],
     params: ModelParams = DEFAULT_PARAMS,
+    real_results: dict[str, tuple[int, int]] | None = None,
 ) -> dict[Phase, list[Match]]:
-    """Prevê todas as fases eliminatórias e devolve os jogos por fase.
+    """Prevê (ou aplica resultados reais de) todas as fases eliminatórias.
 
-    Cada jogo é previsto em modo `knockout=True` (sem empate); o vencedor
-    previsto avança. Inclui a disputa do 3º lugar e a final.
+    `real_results` mapeia match_id ("m73"...) -> (gols_casa, gols_fora). Para os
+    jogos já disputados usa-se o placar REAL para decidir quem avança; os restantes
+    são previstos em modo `knockout=True`. Assim os resultados reais PROPAGAM-se
+    pelas fases seguintes (quem realmente venceu segue para a ronda seguinte).
+    A previsão é sempre calculada também, para exibir confiança/probabilidades.
     """
-    def predict_all(matches: list[Match]) -> None:
+    real_results = real_results or {}
+
+    def fill(matches: list[Match]) -> None:
         for m in matches:
             m.prediction = predict_match(
                 teams[m.home_team], teams[m.away_team], params, knockout=True
             )
+            if m.match_id in real_results:
+                hg, ag = real_results[m.match_id]
+                m.set_real_score(hg, ag)
             m._sync_status()
 
-    predict_all(round_of_32)
+    fill(round_of_32)
     rounds: dict[Phase, list[Match]] = {Phase.ROUND_OF_32: round_of_32}
 
     # Resultados por jogo: número -> (vencedor, perdedor).
@@ -190,7 +213,7 @@ def simulate_knockouts(
             )
             for num, home_ref, away_ref in _PHASE_OF[phase]
         ]
-        predict_all(matches)
+        fill(matches)
         for m in matches:
             outcomes[int(m.match_id[1:])] = _winner_loser(m)
         rounds[phase] = matches
@@ -206,10 +229,7 @@ def simulate_knockouts(
             home_team=resolve_ref(home_ref),
             away_team=resolve_ref(away_ref),
         )
-        m.prediction = predict_match(
-            teams[m.home_team], teams[m.away_team], params, knockout=True
-        )
-        m._sync_status()
+        fill([m])
         outcomes[num] = _winner_loser(m)
         rounds[phase] = [m]
 
