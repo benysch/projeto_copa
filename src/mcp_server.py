@@ -61,16 +61,24 @@ def _resolve_phase(phase_name: str) -> Phase:
 
 
 @mcp.tool
-def get_phase_predictions(phase_name: str) -> dict:
-    """Previsões (placar, vencedor, confiança) de todos os jogos de uma fase.
+def get_phase_predictions(phase_name: str, matchday: Optional[int] = None) -> dict:
+    """Previsões (placar, vencedor, confiança) dos jogos de uma fase.
 
     `phase_name` aceita o identificador ("group_stage", "round_of_32", ...) ou
     aliases ("grupos", "oitavas", "quartas", "semis", "final").
+
+    `matchday` (opcional, 1–3) filtra a RODADA na fase de grupos — ex.: 1 devolve
+    só a primeira rodada (24 jogos). Ignorado nas fases eliminatórias.
     """
     phase = _resolve_phase(phase_name)
     matches = engine.get_phase(phase)
+    if matchday is not None:
+        if matchday not in (1, 2, 3):
+            raise ValueError("matchday deve ser 1, 2 ou 3 (rodadas da fase de grupos).")
+        matches = [m for m in matches if m.matchday == matchday]
     return {
         "phase": phase.value,
+        "matchday": matchday,
         "match_count": len(matches),
         "matches": [match_to_dict(m, engine.teams) for m in matches],
     }

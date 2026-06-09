@@ -79,6 +79,10 @@ Expõe o motor vivo como ferramentas MCP (`get_phase_predictions`,
 `update_real_score`, `get_group_standings`, `get_title_probabilities`,
 `resolve_playoff`, `get_match`, `list_phases`).
 
+`get_phase_predictions(phase_name, matchday=None)` aceita um `matchday` opcional
+(1–3) para filtrar a rodada na fase de grupos — ex.: `matchday=1` devolve só os
+24 jogos da 1ª rodada. Cada jogo de grupos inclui o campo `matchday`.
+
 ```bash
 python -m src.mcp_server          # stdio (default)
 fastmcp run src/mcp_server.py     # via CLI do fastmcp

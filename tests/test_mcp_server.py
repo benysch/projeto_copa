@@ -55,6 +55,18 @@ def test_group_stage_has_72():
     assert data["match_count"] == 72
 
 
+def test_matchday_filter():
+    data = _call("get_phase_predictions", {"phase_name": "grupos", "matchday": 1})
+    assert data["match_count"] == 24
+    assert all(m["matchday"] == 1 for m in data["matches"])
+
+
+def test_invalid_matchday_errors():
+    import pytest
+    with pytest.raises(Exception):
+        _call("get_phase_predictions", {"phase_name": "grupos", "matchday": 9})
+
+
 def test_update_real_score_recalculates():
     standings = _call("get_group_standings", {"group": "H"})
     assert standings["table"][0]["team"]["id"] == "ESP"

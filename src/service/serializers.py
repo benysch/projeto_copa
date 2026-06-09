@@ -18,6 +18,9 @@ def match_to_dict(match: Match, teams: dict[str, Team]) -> dict:
         "away_team": {"id": match.away_team, "name": name(match.away_team)},
         "status": match.status.value,
     }
+    # Rodada da fase de grupos (1–3); ausente nas eliminatórias.
+    if match.matchday is not None:
+        out["matchday"] = match.matchday
 
     if match.prediction is not None:
         p = match.prediction
