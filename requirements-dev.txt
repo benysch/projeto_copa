@@ -1,0 +1,5 @@
+# Dependências opcionais de desenvolvimento/benchmark (NÃO usadas em produção).
+-r requirements.txt
+pytest>=7.0
+sportiq-mcp        # motor externo (MIT) para o benchmark — benchmarks/compare_sportiq.py
+scipy>=1.10        # exigido pelo motor do sportiq

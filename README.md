@@ -58,6 +58,21 @@ tests/
   test_engine.py      test_mcp_server.py
 ```
 
+## Validação externa (benchmark)
+
+O motor é validado contra o **SportIQ-MCP** (MIT, motor independente), alimentando
+os MESMOS inputs (nossos ratings + sorteio oficial) aos dois e comparando as
+probabilidades de título. Resultado: **diferença média ~0.3 pp** (máx ~3 pp) — dois
+motores independentes concordam de perto, o que confirma a nossa implementação.
+
+```bash
+pip install -r requirements-dev.txt   # sportiq-mcp + scipy (opcionais)
+python -m benchmarks.compare_sportiq
+```
+
+> SportIQ é só *referência*, não substitui o nosso motor (que é calibrado,
+> transparente e específico para o nosso pipeline vivo).
+
 ## Servidor MCP
 
 Expõe o motor vivo como ferramentas MCP (`get_phase_predictions`,
