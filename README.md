@@ -84,6 +84,9 @@ python -m src.mcp_server          # stdio (default)
 fastmcp run src/mcp_server.py     # via CLI do fastmcp
 ```
 
+📄 Guia completo de execução local (venv + registo no Claude Code/Desktop):
+**[`docs/RUNNING.md`](docs/RUNNING.md)**.
+
 Configuração num cliente MCP (ex.: Claude Desktop), em `mcpServers`:
 
 ```json
