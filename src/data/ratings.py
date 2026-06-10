@@ -7,10 +7,9 @@ Fontes:
     (adaptado da lógica de world-cup-2026-prediction-model).
 
 Notas:
-  • 6 vagas continuam por definir (vencedores dos playoffs UEFA A–D e
-    Intercontinentais 1–2). Entram como placeholders (`is_placeholder=True`)
-    com Elo provisório e DEVEM ser resolvidas quando os playoffs terminarem
-    — o sistema 'vivo' substitui o team_id e o Elo nessa altura.
+  • As 6 vagas de playoff (UEFA A–D e Intercontinentais 1–2) foram RESOLVIDAS
+    com os vencedores reais de março/2026: A=BIH, B=SWE, C=TUR, D=CZE,
+    IC-1=COD, IC-2=IRQ (Elo de junho/2026, escala eloratings.net).
   • Anfitriãs (MEX/USA/CAN) recebem vantagem de casa nos seus jogos.
 """
 
@@ -18,36 +17,32 @@ from __future__ import annotations
 
 from ..model.schemas import Match, Phase, Team
 
-# Elo provisório para vagas de playoff ainda não resolvidas.
-_UEFA_PLAYOFF_ELO = 1700.0   # vencedor típico de playoff europeu
-_IC_PLAYOFF_ELO = 1500.0     # vencedor típico de playoff intercontinental
-
 _HOSTS = {"MEX", "USA", "CAN"}
 
 # (code, nome, elo, is_placeholder) na ordem oficial de cada grupo (pote/seed).
 _RAW_GROUPS: dict[str, list[tuple[str, str, float, bool]]] = {
     "A": [("MEX", "México", 1830, False), ("RSA", "África do Sul", 1562, False),
-          ("KOR", "Coreia do Sul", 1745, False), ("UEFA-D", "Vencedor Playoff UEFA D", _UEFA_PLAYOFF_ELO, True)],
+          ("KOR", "Coreia do Sul", 1745, False), ("CZE", "Tchéquia", 1740, False)],
     "B": [("CAN", "Canadá", 1725, False), ("SUI", "Suíça", 1811, False),
-          ("QAT", "Catar", 1554, False), ("UEFA-A", "Vencedor Playoff UEFA A", _UEFA_PLAYOFF_ELO, True)],
+          ("QAT", "Catar", 1554, False), ("BIH", "Bósnia e Herzegovina", 1595, False)],
     "C": [("BRA", "Brasil", 1994, False), ("MAR", "Marrocos", 1875, False),
           ("HAI", "Haiti", 1481, False), ("SCO", "Escócia", 1618, False)],
     "D": [("USA", "Estados Unidos", 1794, False), ("PAR", "Paraguai", 1653, False),
-          ("AUS", "Austrália", 1769, False), ("UEFA-C", "Vencedor Playoff UEFA C", _UEFA_PLAYOFF_ELO, True)],
+          ("AUS", "Austrália", 1769, False), ("TUR", "Türkiye", 1911, False)],
     "E": [("GER", "Alemanha", 1928, False), ("ECU", "Equador", 1790, False),
           ("CIV", "Costa do Marfim", 1706, False), ("CUW", "Curaçao", 1543, False)],
     "F": [("NED", "Países Baixos", 1946, False), ("JPN", "Japão", 1851, False),
-          ("TUN", "Tunísia", 1666, False), ("UEFA-B", "Vencedor Playoff UEFA B", _UEFA_PLAYOFF_ELO, True)],
+          ("TUN", "Tunísia", 1666, False), ("SWE", "Suécia", 1712, False)],
     "G": [("BEL", "Bélgica", 1872, False), ("IRN", "Irã", 1735, False),
           ("EGY", "Egito", 1672, False), ("NZL", "Nova Zelândia", 1569, False)],
     "H": [("ESP", "Espanha", 2075, False), ("URU", "Uruguai", 1833, False),
           ("KSA", "Arábia Saudita", 1620, False), ("CPV", "Cabo Verde", 1551, False)],
     "I": [("FRA", "França", 2042, False), ("SEN", "Senegal", 1830, False),
-          ("NOR", "Noruega", 1814, False), ("IC-2", "Vencedor Playoff Interc. 2", _IC_PLAYOFF_ELO, True)],
+          ("NOR", "Noruega", 1814, False), ("IRQ", "Iraque", 1607, False)],
     "J": [("ARG", "Argentina", 2064, False), ("AUT", "Áustria", 1795, False),
           ("ALG", "Argélia", 1676, False), ("JOR", "Jordânia", 1515, False)],
     "K": [("POR", "Portugal", 1935, False), ("COL", "Colômbia", 1884, False),
-          ("UZB", "Uzbequistão", 1638, False), ("IC-1", "Vencedor Playoff Interc. 1", _IC_PLAYOFF_ELO, True)],
+          ("UZB", "Uzbequistão", 1638, False), ("COD", "RD Congo", 1652, False)],
     "L": [("ENG", "Inglaterra", 1982, False), ("CRO", "Croácia", 1878, False),
           ("GHA", "Gana", 1635, False), ("PAN", "Panamá", 1582, False)],
 }
@@ -81,8 +76,7 @@ def build_first_round_matches() -> list[Match]:
     """Gera os jogos da PRIMEIRA RODADA de cada grupo (matchday 1).
 
     Na 1ª rodada jogam-se seed1 x seed2 e seed3 x seed4. Resultam 24 partidas
-    (12 grupos x 2 jogos). Seis envolvem uma vaga de playoff (TBD) e ficam com
-    previsão PROVISÓRIA até resolução.
+    (12 grupos x 2 jogos).
     """
     return [m for m in build_group_stage_matches() if m.matchday == 1]
 

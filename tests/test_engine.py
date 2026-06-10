@@ -30,13 +30,15 @@ def test_local_feed_applies_real_results(tmp_path):
     assert a11.real_score.home_goals == 3 and a11.real_score.away_goals == 0
 
 
-def test_local_feed_resolves_playoffs(tmp_path):
-    path = _feed(tmp_path, {"playoffs": {"UEFA-A": {"name": "Itália", "elo": 1860}}})
+def test_local_feed_overrides_team_rating(tmp_path):
+    """O mecanismo de resolução de playoffs serve agora para correções de rating."""
+    path = _feed(tmp_path, {"playoffs": {"BIH": {"name": "Bósnia e Herzegovina", "elo": 1610}}})
     eng = PredictionEngine(LocalFeedProvider(path))
-    team = eng.teams["UEFA-A"]
-    assert team.name == "Itália"
+    team = eng.teams["BIH"]
+    assert team.name == "Bósnia e Herzegovina"
     assert team.is_placeholder is False
-    assert team.elo == 1860
+    assert team.elo == 1610
+    assert team.group == "B"  # grupo preservado do provedor base
 
 
 def test_update_real_score_recomputes_standings():

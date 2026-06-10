@@ -1,5 +1,5 @@
 {
-  "_comment": "Feed de exemplo simulando dados ao vivo. 'results': match_id -> [gols_casa, gols_fora]. 'playoffs': slot -> seleção que venceu a repescagem. Substituir por chamadas a uma API real em produção.",
+  "_comment": "Feed de exemplo simulando dados ao vivo. 'results': match_id -> [gols_casa, gols_fora]. 'playoffs': team_id -> nome/Elo a sobrepor (as vagas de playoff já foram resolvidas nos dados base; serve agora para correções de rating). Substituir por chamadas a uma API real em produção.",
   "results": {
     "A11": [3, 0],
     "A12": [2, 1],
@@ -7,7 +7,6 @@
     "H12": [0, 2]
   },
   "playoffs": {
-    "UEFA-A": { "name": "Itália", "elo": 1860 },
-    "IC-1": { "name": "Bolívia", "elo": 1540 }
+    "BIH": { "name": "Bósnia e Herzegovina", "elo": 1610 }
   }
 }

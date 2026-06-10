@@ -42,6 +42,9 @@ _NAME_ALIASES: dict[str, list[str]] = {
     "AUT": ["austria"], "ALG": ["algeria"], "JOR": ["jordan"], "POR": ["portugal"],
     "COL": ["colombia"], "UZB": ["uzbekistan"], "ENG": ["england"], "CRO": ["croatia"],
     "GHA": ["ghana"], "PAN": ["panama"],
+    "CZE": ["czechia", "czech republic"], "BIH": ["bosnia and herzegovina", "bosnia-herzegovina", "bosnia"],
+    "TUR": ["turkey", "türkiye", "turkiye"], "SWE": ["sweden"],
+    "IRQ": ["iraq"], "COD": ["dr congo", "congo dr", "dr. congo", "democratic republic of congo", "congo"],
 }
 
 

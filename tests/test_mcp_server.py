@@ -76,14 +76,13 @@ def test_update_real_score_recalculates():
     assert uru["goals_for"] >= 4
 
 
-def test_resolve_playoff():
-    out = _call("resolve_playoff", {"slot_id": "UEFA-A", "team_name": "Itália", "elo": 1860})
-    assert out["resolved"] == "UEFA-A"
-    match = _call("get_match", {"match_id": "B12"})  # KOR... grupo B usa UEFA-A
-    # confirma que o nome resolvido aparece em algum lado do grupo B
+def test_resolve_playoff_adjusts_team():
+    """Sem placeholders restantes, a ferramenta serve para corrigir nome/Elo."""
+    out = _call("resolve_playoff", {"slot_id": "BIH", "team_name": "Bósnia", "elo": 1610})
+    assert out["resolved"] == "BIH"
     grp = _call("get_group_standings", {"group": "B"})
     names = [r["team"]["name"] for r in grp["table"]]
-    assert "Itália" in names
+    assert "Bósnia" in names
 
 
 def test_list_phases_counts():

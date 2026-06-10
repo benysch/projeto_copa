@@ -146,7 +146,11 @@ def get_title_probabilities(top: int = 16, n_sims: int = 10000) -> dict:
 
 @mcp.tool
 def resolve_playoff(slot_id: str, team_name: str, elo: float) -> dict:
-    """Define uma vaga de playoff (ex.: 'UEFA-A') com a seleção que se classificou."""
+    """Corrige nome/Elo de uma seleção (as vagas de playoff já estão resolvidas).
+
+    Historicamente definia uma vaga de playoff ('UEFA-A'); com todas as vagas
+    resolvidas nos dados base, serve para ajustes manuais de rating.
+    """
     if slot_id not in engine.teams:
         raise ValueError(f"Slot desconhecido: '{slot_id}'.")
     team = engine.teams[slot_id]
