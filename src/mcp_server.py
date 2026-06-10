@@ -14,16 +14,33 @@ Ferramentas:
     get_match(match_id)                      -> detalhe de uma partida
     get_group_standings(group)               -> classificação de um grupo
     get_title_probabilities(top, n_sims)     -> probabilidades por fase (MC)
-    resolve_playoff(slot_id, name, elo)      -> define uma vaga de playoff
+    resolve_playoff(slot_id, name, elo)      -> corrige nome/Elo de uma seleção
     list_phases()                            -> fases disponíveis e contagens
+    sync_results()                           -> puxa placares da fonte ao vivo
+    get_elo_ratings(top)                     -> Elo atual (recalibrado) + delta
+
+Fonte de dados (variável de ambiente WC2026_PROVIDER):
+    static (default) -> dados embutidos; resultados via update_real_score
+    feed             -> JSON local (WC2026_FEED_PATH, default data/sample_feed.json)
+    livescore        -> cliente MCP de placares (WC2026_LIVESCORE_URL)
+    api              -> API-FOOTBALL (API_FOOTBALL_KEY, WC2026_API_LEAGUE/SEASON)
 """
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from typing import Optional
 
 from fastmcp import FastMCP
 
+from .data.providers import (
+    ApiFootballProvider,
+    DataProvider,
+    LiveScoreMcpProvider,
+    LocalFeedProvider,
+    StaticProvider,
+)
 from .model.schemas import Phase
 from .service.engine import PredictionEngine
 from .service.serializers import match_to_dict
@@ -37,8 +54,28 @@ mcp = FastMCP(
     ),
 )
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def build_provider() -> DataProvider:
+    """Escolhe a fonte de dados pela variável de ambiente WC2026_PROVIDER."""
+    kind = os.environ.get("WC2026_PROVIDER", "static").strip().lower()
+    if kind == "feed":
+        default_feed = _REPO_ROOT / "data" / "sample_feed.json"
+        return LocalFeedProvider(os.environ.get("WC2026_FEED_PATH", str(default_feed)))
+    if kind == "livescore":
+        url = os.environ.get("WC2026_LIVESCORE_URL", "https://livescoremcp.com/sse")
+        return LiveScoreMcpProvider(server_url=url)
+    if kind == "api":
+        return ApiFootballProvider(
+            league=int(os.environ.get("WC2026_API_LEAGUE", "1")),
+            season=int(os.environ.get("WC2026_API_SEASON", "2026")),
+        )
+    return StaticProvider()
+
+
 # Estado vivo partilhado por todas as ferramentas.
-engine = PredictionEngine()
+engine = PredictionEngine(build_provider())
 
 # Aceita o valor do enum ("group_stage") e aliases amigáveis (PT/EN).
 _PHASE_ALIASES: dict[str, Phase] = {
@@ -159,6 +196,50 @@ def resolve_playoff(slot_id: str, team_name: str, elo: float) -> dict:
     team.is_placeholder = False
     engine.refresh()
     return {"resolved": slot_id, "name": team_name, "elo": elo}
+
+
+@mcp.tool
+def sync_results() -> dict:
+    """Puxa os resultados mais recentes da fonte ao vivo e recalcula tudo.
+
+    Com WC2026_PROVIDER=livescore/feed/api, ingere os placares já disputados;
+    com o provedor estático apenas reaplica os resultados manuais.
+    """
+    engine.refresh()
+    finished_groups = sum(1 for m in engine.group_matches if m.is_finished)
+    finished_knockouts = sum(
+        1 for matches in engine.rounds.values() for m in matches if m.is_finished
+    )
+    return {
+        "provider": type(engine.provider).__name__,
+        "finished_group_matches": finished_groups,
+        "finished_knockout_matches": finished_knockouts,
+        "champion_now": _named(engine.champion),
+    }
+
+
+@mcp.tool
+def get_elo_ratings(top: int = 48) -> dict:
+    """Ratings Elo ATUAIS (recalibrados com os resultados reais) e delta vs. base.
+
+    `delta_vs_base` mostra quanto cada seleção ganhou/perdeu de rating com os
+    jogos já disputados do torneio (0 antes de a Copa começar).
+    """
+    ranked = sorted(engine.teams.values(), key=lambda t: t.elo, reverse=True)
+    return {
+        "recalibration_enabled": engine.recalibrate_elo,
+        "k_factor": engine.elo_k,
+        "teams": [
+            {
+                "id": t.team_id,
+                "name": t.name,
+                "group": t.group,
+                "elo": round(t.elo, 1),
+                "delta_vs_base": round(engine.elo_delta(t.team_id), 1),
+            }
+            for t in ranked[:top]
+        ],
+    }
 
 
 @mcp.tool

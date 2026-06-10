@@ -77,11 +77,25 @@ python -m benchmarks.compare_sportiq
 
 Expõe o motor vivo como ferramentas MCP (`get_phase_predictions`,
 `update_real_score`, `get_group_standings`, `get_title_probabilities`,
-`resolve_playoff`, `get_match`, `list_phases`).
+`resolve_playoff`, `get_match`, `list_phases`, `sync_results`,
+`get_elo_ratings`).
 
 `get_phase_predictions(phase_name, matchday=None)` aceita um `matchday` opcional
 (1–3) para filtrar a rodada na fase de grupos — ex.: `matchday=1` devolve só os
 24 jogos da 1ª rodada. Cada jogo de grupos inclui o campo `matchday`.
+
+`sync_results()` puxa os placares mais recentes da fonte ao vivo e recalcula
+tudo; `get_elo_ratings(top)` mostra o Elo ATUAL de cada seleção (recalibrado
+com os resultados reais) e o delta vs. o rating pré-torneio.
+
+A fonte de dados escolhe-se pela variável de ambiente **`WC2026_PROVIDER`**:
+
+| Valor | Provedor | Notas |
+|---|---|---|
+| `static` (default) | `StaticProvider` | offline; resultados via `update_real_score` |
+| `livescore` | `LiveScoreMcpProvider` | ingestão automática e grátis (rede) |
+| `feed` | `LocalFeedProvider` | JSON local (`WC2026_FEED_PATH`) |
+| `api` | `ApiFootballProvider` | requer `API_FOOTBALL_KEY` |
 
 ```bash
 python -m src.mcp_server          # stdio (default)
@@ -113,9 +127,12 @@ A frescura dos dados vem de um **`DataProvider`** (`src/data/providers/`), a
   (api-sports.io): requer `API_FOOTBALL_KEY` e acesso de rede. Busca os
   resultados reais e mapeia-os para os nossos `match_id`.
 - **`LiveScoreMcpProvider`** — ingestão AUTOMÁTICA e grátis agindo como cliente
-  MCP de um servidor de placares (ex.: livescore-mcp). Busca os jogos da Copa,
-  resolve nomes -> códigos e mapeia por par de seleções para os nossos `match_id`
-  (orientação do placar corrigida). Requer rede ao host em produção.
+  MCP de um servidor de placares (livescoremcp.com; protocolo real validado em
+  2026-06-10). Percorre os dias da fase de grupos com `get_day_fixtures`,
+  filtra a liga "FIFA World Cup", resolve nomes -> códigos e mapeia por par de
+  seleções para os nossos `match_id` (orientação do placar corrigida); dias já
+  encerrados são cacheados. Requer rede ao host. Eliminatórias entram via
+  `update_real_score` (o par de seleções pode repetir-se no mata-mata).
 
 O **`PredictionEngine`** (`src/service/engine.py`) liga o provedor ao modelo:
 aplica os resultados reais (de grupos **e** eliminatórias), resolve as vagas de
@@ -126,11 +143,15 @@ avança, não o favorito previsto. É o núcleo que o servidor MCP expõe via
 
 ## Dados e modelo
 
-- **Grupos (A–L):** composição do sorteio oficial da Copa 2026. Seis vagas
-  (playoffs UEFA A–D e Intercontinentais 1–2) ainda por definir entram como
-  placeholders com Elo provisório, resolvidos quando os playoffs terminarem.
+- **Grupos (A–L):** composição do sorteio oficial da Copa 2026, com as seis
+  vagas de playoff RESOLVIDAS com os vencedores reais de março/2026
+  (A=Tchéquia, B=Bósnia, D=Türkiye, F=Suécia, I=Iraque, K=RD Congo).
 - **Ratings Elo:** calibrados sobre ~920 internacionais reais (Out/2023–Mai/2026),
   ponderados por recência e importância da competição.
+- **Recalibração contínua (`src/model/elo.py`):** cada resultado real atualiza
+  os ratings com `delta = K·G·(W−We)` (convenção eloratings.net, K=50, G por
+  margem de gols). Idempotente: a cada refresh os ratings repartem do snapshot
+  pré-torneio e os deltas são reaplicados em ordem cronológica.
 - **Fórmula λ:** `clamp(1.35 + Δrating/400, [0.3, 3.5])`; Dixon-Coles ρ = −0.13.
 - **Vantagem de casa:** +75 de Elo apenas para as anfitriãs (MEX/USA/CAN).
 
@@ -156,17 +177,18 @@ python -m pytest -q              # testes
 - [x] **Camada de dados 'viva'** — `DataProvider` + `PredictionEngine`: aplica
   resultados reais e resolve playoffs, recalculando todas as fases.
 - [x] **Passo 5** — Servidor MCP (`fastmcp`) por cima do `PredictionEngine`
-  (`src/mcp_server.py`), com 7 ferramentas.
+  (`src/mcp_server.py`), com 9 ferramentas.
 - [x] **Monte Carlo condicionado** — a simulação parte dos jogos já disputados
   (resultados reais fixados, só o resto é amostrado).
 - [x] **Template de provedor de API** — `ApiFootballProvider` pronto para ligar
   em produção (chave + rede).
-- [ ] Pendente — ligar a API real em produção e recalibrar o Elo de forma
-  contínua à medida que entram resultados.
-
-> ℹ️ Seis vagas de playoff (UEFA A–D, Intercontinentais 1–2) entram como
-> placeholders com Elo provisório; previsões que as envolvem são marcadas como
-> PROVISÓRIAS até os playoffs serem disputados.
+- [x] **Vagas de playoff resolvidas** — vencedores reais de março/2026 nos
+  dados base (BIH, SWE, TUR, CZE, COD, IRQ) com Elo de junho/2026.
+- [x] **Fonte ao vivo ligada** — `LiveScoreMcpProvider` adaptado ao protocolo
+  real do livescoremcp.com (validado contra o servidor); seleção por
+  `WC2026_PROVIDER` + ferramenta `sync_results`.
+- [x] **Recalibração contínua do Elo** — `src/model/elo.py` + integração
+  idempotente no `PredictionEngine`; ferramenta `get_elo_ratings`.
 
 > ⚠️ **Modo determinístico vs. Monte Carlo:** o chaveamento atual usa o
 > resultado *mais provável* de cada jogo, pelo que o favorito vence sempre e a

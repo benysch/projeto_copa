@@ -30,8 +30,28 @@ def test_all_tools_registered():
     assert {
         "get_phase_predictions", "update_real_score", "get_match",
         "get_group_standings", "get_title_probabilities", "resolve_playoff",
-        "list_phases",
+        "list_phases", "sync_results", "get_elo_ratings",
     } <= names
+
+
+def test_sync_results_reports_state():
+    out = _call("sync_results")
+    assert out["provider"] == "StaticProvider"
+    assert out["finished_group_matches"] == 0
+    _call("update_real_score", {"match_id": "A11", "home_goals": 2, "away_goals": 0})
+    out = _call("sync_results")
+    assert out["finished_group_matches"] == 1
+
+
+def test_get_elo_ratings_shows_live_delta():
+    out = _call("get_elo_ratings", {"top": 48})
+    assert out["recalibration_enabled"] is True
+    assert all(t["delta_vs_base"] == 0 for t in out["teams"])
+    _call("update_real_score", {"match_id": "H11", "home_goals": 0, "away_goals": 4})
+    out = _call("get_elo_ratings", {"top": 48})
+    uru = next(t for t in out["teams"] if t["id"] == "URU")
+    esp = next(t for t in out["teams"] if t["id"] == "ESP")
+    assert uru["delta_vs_base"] > 0 > esp["delta_vs_base"]
 
 
 def test_get_phase_predictions_final():

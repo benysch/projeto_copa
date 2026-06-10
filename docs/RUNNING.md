@@ -66,9 +66,21 @@ Reinicia o cliente. Depois podes pedir, por exemplo:
 ## 5. Dados ao vivo (opcional)
 
 Por omissão o servidor usa o `StaticProvider` (dados embutidos; o "vivo" funciona
-por `update_real_score` manual). Para ingestão automática, troca o provedor em
-`src/mcp_server.py` (`engine = PredictionEngine(...)`) por `LocalFeedProvider`,
-`ApiFootballProvider` (chave + rede) ou `LiveScoreMcpProvider` (rede ao host).
+por `update_real_score` manual). Para ingestão automática define a variável de
+ambiente `WC2026_PROVIDER` no registo do servidor:
+
+```bash
+claude mcp add wc2026 \
+  --env PYTHONPATH=/CAMINHO/ABSOLUTO/projeto_copa \
+  --env WC2026_PROVIDER=livescore \
+  -- /CAMINHO/ABSOLUTO/projeto_copa/.venv/bin/python -m src.mcp_server
+```
+
+Valores: `livescore` (placares grátis via livescoremcp.com, requer rede),
+`feed` (JSON local, `WC2026_FEED_PATH`), `api` (API-FOOTBALL, requer
+`API_FOOTBALL_KEY`), `static` (default). Com uma fonte ao vivo ativa, chama a
+ferramenta `sync_results` para puxar os placares mais recentes e recalcular;
+`get_elo_ratings` mostra o Elo recalibrado com os resultados reais.
 Ver a secção *Dados ao vivo* no `README.md`.
 
 ## Porquê não Vercel / serverless?
