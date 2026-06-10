@@ -111,6 +111,13 @@ class Score(BaseModel):
         return f"{self.home_goals}-{self.away_goals}"
 
 
+# Limiares do alerta de equilíbrio (ver MatchPrediction.is_balanced): num modelo
+# de Poisson P(empate) satura em ~25-30% e quase nunca é a moda dos desfechos,
+# logo o rótulo `expected_winner` sozinho esconde os jogos sem favorito claro.
+BALANCED_CONFIDENCE = 40.0  # % — nenhum desfecho chega a 40% de probabilidade
+BALANCED_DRAW_MARGIN = 0.05  # empate a <= 5 p.p. da vitória mais provável
+
+
 class MatchPrediction(BaseModel):
     """As três variáveis de saída exigidas, mais o detalhe probabilístico.
 
@@ -139,6 +146,18 @@ class MatchPrediction(BaseModel):
     @property
     def predicted_outcome(self) -> Outcome:
         return self.predicted_score.outcome
+
+    @property
+    def is_balanced(self) -> bool:
+        """Jogo sem favorito claro: confiança baixa OU empate colado no líder.
+
+        Só faz sentido onde o empate é um desfecho final (fase de grupos).
+        """
+        leader = max(self.prob_home, self.prob_away)
+        return (
+            self.confidence_level < BALANCED_CONFIDENCE
+            or self.prob_draw >= leader - BALANCED_DRAW_MARGIN
+        )
 
 
 class Match(BaseModel):

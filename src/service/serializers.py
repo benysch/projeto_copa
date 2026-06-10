@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..model.schemas import Match, Team
+from ..model.schemas import Match, Phase, Team
 
 
 def match_to_dict(match: Match, teams: dict[str, Team]) -> dict:
@@ -37,6 +37,15 @@ def match_to_dict(match: Match, teams: dict[str, Team]) -> dict:
                 "away": round(p.prob_away * 100, 1),
             },
         }
+        # Alerta de equilíbrio: o vencedor previsto é só a moda dos desfechos;
+        # aqui sinalizamos quando ele não é um favorito de verdade. Apenas na
+        # fase de grupos, onde o empate é um desfecho final possível.
+        if match.phase is Phase.GROUP_STAGE and p.is_balanced:
+            out["prediction"]["note"] = (
+                f"equilibrado — sem favorito claro; empate com "
+                f"{round(p.prob_draw * 100)}% de probabilidade"
+            )
+            out.setdefault("flags", []).append("balanced")
 
     if match.real_score is not None:
         out["real_score"] = (

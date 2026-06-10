@@ -88,6 +88,11 @@ Expõe o motor vivo como ferramentas MCP (`get_phase_predictions`,
 tudo; `get_elo_ratings(top)` mostra o Elo ATUAL de cada seleção (recalibrado
 com os resultados reais) e o delta vs. o rating pré-torneio.
 
+Jogos de grupos sem favorito claro (nenhum desfecho chega a 40% ou empate a
+≤5 p.p. do líder) recebem a flag `balanced` e uma `note` na previsão — o
+`expected_winner` é a moda dos desfechos e, num modelo de Poisson, o empate
+quase nunca é a moda mesmo sendo provável (~17 empates esperados nos 72 jogos).
+
 A fonte de dados escolhe-se pela variável de ambiente **`WC2026_PROVIDER`**:
 
 | Valor | Provedor | Notas |
