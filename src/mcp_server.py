@@ -16,6 +16,7 @@ Ferramentas:
     get_title_probabilities(top, n_sims)     -> probabilidades por fase (MC)
     simulate_tournament(seed)                -> UM cenário amostrado completo
     get_matches_by_date(start_date, days)    -> jogos da janela de datas
+    get_market_odds(top, n_sims, blend)      -> modelo x Polymarket x blend
     resolve_playoff(slot_id, name, elo)      -> corrige nome/Elo de uma seleção
     list_phases()                            -> fases disponíveis e contagens
     sync_results()                           -> puxa placares da fonte ao vivo
@@ -221,6 +222,27 @@ def simulate_tournament(seed: Optional[int] = None) -> dict:
     chamada gera um cenário diferente; passe `seed` para reproduzir o mesmo.
     """
     return engine.sample_scenario(seed=seed)
+
+
+@mcp.tool
+def get_market_odds(
+    top: int = 16, n_sims: int = 10000, blend_weight: float = 0.5
+) -> dict:
+    """Título: nosso modelo x mercado (Polymarket) x estimativa combinada.
+
+    Busca o evento 'world-cup-winner' do Polymarket (probabilidades implícitas
+    nos preços, vig removido) e compara com o Monte Carlo do modelo. Devolve,
+    por seleção: `model_pct`, `market_pct`, `blend_pct` (pool logarítmico com
+    peso `blend_weight` no modelo) e `edge_pp` (modelo - mercado, em pontos
+    percentuais; positivo = modelo mais otimista que o mercado).
+
+    Requer acesso à internet; os preços têm cache de 5 minutos.
+    """
+    result = engine.market_comparison(n_sims=n_sims, blend_weight=blend_weight)
+    result["teams"] = [
+        {"team": _named(r.pop("team_id")), **r} for r in result["teams"][:top]
+    ]
+    return result
 
 
 @mcp.tool

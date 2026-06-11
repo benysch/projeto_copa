@@ -15,6 +15,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from ..data.calendar import parse_kickoff
+from ..data.polymarket import implied_title_probabilities
 from ..data.providers import DataProvider, StaticProvider
 from ..model import elo as elo_model
 from ..model.bracket import build_round_of_32, simulate_knockouts
@@ -216,6 +217,63 @@ class PredictionEngine:
         return sample_scenario(
             self.teams, self.group_matches, params=self.params, seed=seed
         )
+
+    def market_comparison(
+        self,
+        n_sims: int = 10_000,
+        blend_weight: float = 0.5,
+        seed: int | None = None,
+        market_probs: dict[str, float] | None = None,
+        market_vig_pct: float | None = None,
+    ) -> dict:
+        """Compara o título: modelo (Monte Carlo) x mercado (Polymarket).
+
+        `blend_weight` é o peso do MODELO no pool logarítmico
+        (p_blend ∝ p_modelo^w · p_mercado^(1-w), renormalizado): 1.0 = só
+        modelo, 0.0 = só mercado. `market_probs` permite injetar dados
+        (testes); default busca do Polymarket (rede).
+        """
+        if not 0.0 <= blend_weight <= 1.0:
+            raise ValueError("blend_weight deve estar em [0, 1].")
+        if market_probs is None:
+            market_probs, market_vig_pct = implied_title_probabilities()
+
+        mc = self.probabilities(n_sims=n_sims, seed=seed)
+        model = {
+            tid: probs["champion"] / 100.0
+            for tid, probs in mc.probabilities.items()
+        }
+
+        # Pool logarítmico sobre as seleções presentes em ambas as fontes.
+        eps = 1e-6  # evita zerar quem tem 0.0% numa única fonte
+        common = [tid for tid in model if tid in market_probs]
+        blended = {
+            tid: (model[tid] + eps) ** blend_weight
+            * (market_probs[tid] + eps) ** (1.0 - blend_weight)
+            for tid in common
+        }
+        total = sum(blended.values())
+        blended = {tid: v / total for tid, v in blended.items()}
+
+        rows = [
+            {
+                "team_id": tid,
+                "model_pct": round(model[tid] * 100, 1),
+                "market_pct": round(market_probs[tid] * 100, 1),
+                "blend_pct": round(blended[tid] * 100, 1),
+                # Edge: quanto o modelo vê a mais (+) ou a menos (-) que o
+                # mercado, em pontos percentuais.
+                "edge_pp": round((model[tid] - market_probs[tid]) * 100, 1),
+            }
+            for tid in common
+        ]
+        rows.sort(key=lambda r: r["blend_pct"], reverse=True)
+        return {
+            "n_sims": mc.n_sims,
+            "blend_weight": blend_weight,
+            "market_vig_pct": market_vig_pct,
+            "teams": rows,
+        }
 
     def elo_delta(self, team_id: str) -> float:
         """Variação do Elo vs. o snapshot pré-torneio (recalibração ao vivo)."""

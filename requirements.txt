@@ -2,3 +2,4 @@
 pydantic>=2.6        # Schemas / validação das estruturas de dados (Passo 1)
 numpy>=1.24          # Amostragem Poisson e simulações de Monte Carlo
 fastmcp>=2.0         # Servidor MCP que expõe as ferramentas (fase posterior)
+requests>=2.31       # Probabilidades implícitas do Polymarket (get_market_odds)
