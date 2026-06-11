@@ -16,6 +16,7 @@ Notas:
 from __future__ import annotations
 
 from ..model.schemas import Match, Phase, Team
+from .calendar import GROUP_FIXTURES
 
 _HOSTS = {"MEX", "USA", "CAN"}
 
@@ -64,42 +65,33 @@ def build_teams() -> dict[str, Team]:
     return teams
 
 
-# Calendário round-robin de um grupo de 4 (índices), por rodada (matchday).
-_ROUND_ROBIN: dict[int, list[tuple[int, int]]] = {
-    1: [(0, 1), (2, 3)],
-    2: [(0, 2), (3, 1)],
-    3: [(0, 3), (1, 2)],
-}
-
-
 def build_first_round_matches() -> list[Match]:
-    """Gera os jogos da PRIMEIRA RODADA de cada grupo (matchday 1).
-
-    Na 1ª rodada jogam-se seed1 x seed2 e seed3 x seed4. Resultam 24 partidas
-    (12 grupos x 2 jogos).
-    """
+    """Jogos da PRIMEIRA RODADA de cada grupo (matchday 1): 24 partidas."""
     return [m for m in build_group_stage_matches() if m.matchday == 1]
 
 
 def build_group_stage_matches() -> list[Match]:
-    """Gera os 72 jogos da fase de grupos (12 grupos x round-robin de 6).
+    """Gera os 72 jogos da fase de grupos conforme o CALENDÁRIO OFICIAL.
 
-    O conjunto de confrontos é o que determina a classificação; a ordem exacta
-    do calendário oficial pode ser ligada depois sem alterar as tabelas finais.
+    Pareamentos, mando de campo e kickoff (UTC) vêm da tabela oficial FIFA
+    (`src/data/calendar.py`). O match_id é `{grupo}{rodada}{slot}`, com o slot
+    em ordem cronológica dentro da rodada — ex.: "B11" = Canadá x Bósnia.
     """
     matches: list[Match] = []
-    for group, rows in _RAW_GROUPS.items():
-        ids = [r[0] for r in rows]
-        for matchday, pairings in _ROUND_ROBIN.items():
-            for slot, (h, a) in enumerate(pairings, start=1):
-                matches.append(
-                    Match(
-                        match_id=f"{group}{matchday}{slot}",
-                        phase=Phase.GROUP_STAGE,
-                        home_team=ids[h],
-                        away_team=ids[a],
-                        group=group,
-                        matchday=matchday,
-                    )
+    for group, fixtures in GROUP_FIXTURES.items():
+        slot_in_day: dict[int, int] = {}
+        for matchday, home, away, kickoff in fixtures:
+            slot = slot_in_day.get(matchday, 0) + 1
+            slot_in_day[matchday] = slot
+            matches.append(
+                Match(
+                    match_id=f"{group}{matchday}{slot}",
+                    phase=Phase.GROUP_STAGE,
+                    home_team=home,
+                    away_team=away,
+                    group=group,
+                    matchday=matchday,
+                    kickoff_utc=kickoff,
                 )
+            )
     return matches

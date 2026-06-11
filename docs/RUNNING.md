@@ -26,7 +26,7 @@ pip install -r requirements.txt
 ```bash
 python -m src.model.tournament    # torneio completo -> campeão previsto
 python -m src.model.montecarlo    # probabilidades por fase (Monte Carlo)
-python -m pytest -q               # 79 testes
+python -m pytest -q               # 86 testes
 python -m src.mcp_server          # arranca o servidor MCP (Ctrl-C para sair)
 ```
 

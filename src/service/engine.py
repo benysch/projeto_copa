@@ -12,6 +12,9 @@ Fluxo:
 
 from __future__ import annotations
 
+from datetime import date, timedelta
+
+from ..data.calendar import parse_kickoff
 from ..data.providers import DataProvider, StaticProvider
 from ..model import elo as elo_model
 from ..model.bracket import build_round_of_32, simulate_knockouts
@@ -188,6 +191,20 @@ class PredictionEngine:
             seed=seed,
             group_matches=self.group_matches,
         )
+
+    def matches_between(self, start: "date", days: int = 5) -> list[Match]:
+        """Jogos (todas as fases) com kickoff em [start, start + days), por data."""
+        end = start + timedelta(days=days)
+        pool = self.group_matches + [
+            m for matches in self.rounds.values() for m in matches
+        ]
+        selected = [
+            (parse_kickoff(m.kickoff_utc), m)
+            for m in pool
+            if m.kickoff_utc and start <= parse_kickoff(m.kickoff_utc).date() < end
+        ]
+        selected.sort(key=lambda km: km[0])
+        return [m for _, m in selected]
 
     def sample_scenario(self, seed: int | None = None) -> dict:
         """UM torneio completo sorteado da distribuição do modelo.

@@ -14,6 +14,7 @@ usando o simulador em modo eliminatório (sem empate).
 
 from __future__ import annotations
 
+from ..data.calendar import KNOCKOUT_KICKOFFS
 from .schemas import Match, Phase, Team
 from .simulator import DEFAULT_PARAMS, ModelParams, predict_match
 from .standings import GroupStandings, TeamRecord, best_third_placed
@@ -42,12 +43,12 @@ ROUND_OF_32: list[tuple[int, str, str]] = [
 ]
 
 # Fases seguintes: (match_number, ref_casa, ref_fora). Wnn = vencedor do jogo nn;
-# Lnn = perdedor (usado só na disputa de 3º lugar).
-ROUND_OF_16 = [(89, "W73", "W74"), (90, "W75", "W76"), (91, "W77", "W78"),
-               (92, "W79", "W80"), (93, "W81", "W82"), (94, "W83", "W84"),
-               (95, "W85", "W86"), (96, "W87", "W88")]
-QUARTER_FINALS = [(97, "W89", "W90"), (98, "W91", "W92"),
-                  (99, "W93", "W94"), (100, "W95", "W96")]
+# Lnn = perdedor (usado só na disputa de 3º lugar). Combinações OFICIAIS FIFA.
+ROUND_OF_16 = [(89, "W74", "W77"), (90, "W73", "W75"), (91, "W76", "W78"),
+               (92, "W79", "W80"), (93, "W83", "W84"), (94, "W81", "W82"),
+               (95, "W86", "W88"), (96, "W85", "W87")]
+QUARTER_FINALS = [(97, "W89", "W90"), (98, "W93", "W94"),
+                  (99, "W91", "W92"), (100, "W95", "W96")]
 SEMI_FINALS = [(101, "W97", "W98"), (102, "W99", "W100")]
 THIRD_PLACE = (103, "L101", "L102")
 FINAL = (104, "W101", "W102")
@@ -129,6 +130,7 @@ def build_round_of_32(
                 phase=Phase.ROUND_OF_32,
                 home_team=resolve(home_slot),
                 away_team=resolve(away_slot),
+                kickoff_utc=KNOCKOUT_KICKOFFS.get(num),
             )
         )
     return matches
@@ -210,6 +212,7 @@ def simulate_knockouts(
                 phase=phase,
                 home_team=resolve_ref(home_ref),
                 away_team=resolve_ref(away_ref),
+                kickoff_utc=KNOCKOUT_KICKOFFS.get(num),
             )
             for num, home_ref, away_ref in _PHASE_OF[phase]
         ]
@@ -228,6 +231,7 @@ def simulate_knockouts(
             phase=phase,
             home_team=resolve_ref(home_ref),
             away_team=resolve_ref(away_ref),
+            kickoff_utc=KNOCKOUT_KICKOFFS.get(num),
         )
         fill([m])
         outcomes[num] = _winner_loser(m)

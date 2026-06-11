@@ -15,6 +15,7 @@ Ferramentas:
     get_group_standings(group)               -> classificação de um grupo
     get_title_probabilities(top, n_sims)     -> probabilidades por fase (MC)
     simulate_tournament(seed)                -> UM cenário amostrado completo
+    get_matches_by_date(start_date, days)    -> jogos da janela de datas
     resolve_playoff(slot_id, name, elo)      -> corrige nome/Elo de uma seleção
     list_phases()                            -> fases disponíveis e contagens
     sync_results()                           -> puxa placares da fonte ao vivo
@@ -179,6 +180,30 @@ def get_title_probabilities(top: int = 16, n_sims: int = 10000) -> dict:
             {"team": {"id": tid, "name": engine.teams[tid].name}, **probs}
             for tid, probs in result.table(engine.teams, top=top)
         ],
+    }
+
+
+@mcp.tool
+def get_matches_by_date(start_date: Optional[str] = None, days: int = 5) -> dict:
+    """Jogos (todas as fases) com kickoff dentro da janela de datas, em ordem.
+
+    `start_date` em ISO ("2026-06-11"); default = hoje (UTC). `days` é o tamanho
+    da janela (default 5). Devolve previsões/resultados dos jogos no intervalo
+    [start_date, start_date + days), ordenados por kickoff (UTC, calendário
+    oficial FIFA). Nas eliminatórias os confrontos exibidos são os PREVISTOS
+    pelo modelo enquanto as vagas não estão definidas.
+    """
+    from datetime import date as _date
+
+    start = _date.fromisoformat(start_date) if start_date else _date.today()
+    if days < 1:
+        raise ValueError("days deve ser >= 1.")
+    matches = engine.matches_between(start, days=days)
+    return {
+        "start_date": start.isoformat(),
+        "days": days,
+        "match_count": len(matches),
+        "matches": [match_to_dict(m, engine.teams) for m in matches],
     }
 
 

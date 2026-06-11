@@ -77,8 +77,8 @@ python -m benchmarks.compare_sportiq
 
 Expõe o motor vivo como ferramentas MCP (`get_phase_predictions`,
 `update_real_score`, `get_group_standings`, `get_title_probabilities`,
-`simulate_tournament`, `resolve_playoff`, `get_match`, `list_phases`,
-`sync_results`, `get_elo_ratings`).
+`simulate_tournament`, `get_matches_by_date`, `resolve_playoff`, `get_match`,
+`list_phases`, `sync_results`, `get_elo_ratings`).
 
 `get_phase_predictions(phase_name, matchday=None)` aceita um `matchday` opcional
 (1–3) para filtrar a rodada na fase de grupos — ex.: `matchday=1` devolve só os
@@ -87,6 +87,12 @@ Expõe o motor vivo como ferramentas MCP (`get_phase_predictions`,
 `sync_results()` puxa os placares mais recentes da fonte ao vivo e recalcula
 tudo; `get_elo_ratings(top)` mostra o Elo ATUAL de cada seleção (recalibrado
 com os resultados reais) e o delta vs. o rating pré-torneio.
+
+Os fixtures seguem o CALENDÁRIO OFICIAL FIFA (`src/data/calendar.py`):
+pareamentos por rodada, mando de campo, chaveamento das eliminatórias e
+kickoffs em UTC. `get_matches_by_date(start_date=None, days=5)` filtra os
+jogos de qualquer fase por janela de datas (default: próximos 5 dias),
+ordenados por kickoff.
 
 `simulate_tournament(seed=None)` sorteia UM torneio completo da distribuição
 do modelo — ao contrário das previsões por jogo (que mostram o desfecho mais

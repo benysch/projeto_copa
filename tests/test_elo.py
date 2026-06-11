@@ -41,7 +41,7 @@ def test_draw_drains_favorite():
 def test_real_result_recalibrates_elo():
     eng = PredictionEngine(StaticProvider())
     base_esp, base_uru = eng.teams["ESP"].elo, eng.teams["URU"].elo
-    eng.update_real_score("H11", 0, 4)  # goleada do Uruguai sobre a Espanha
+    eng.update_real_score("H32", 4, 0)  # goleada do Uruguai sobre a Espanha (H32 = URU x ESP)
     assert eng.teams["URU"].elo > base_uru
     assert eng.teams["ESP"].elo < base_esp
     # Transferência simétrica de pontos.
@@ -51,7 +51,7 @@ def test_real_result_recalibrates_elo():
 
 def test_recalibration_is_idempotent_across_refreshes():
     eng = PredictionEngine(StaticProvider())
-    eng.update_real_score("H11", 0, 4)
+    eng.update_real_score("H32", 4, 0)
     after_first = eng.teams["URU"].elo
     eng.refresh()
     eng.refresh()
@@ -61,21 +61,21 @@ def test_recalibration_is_idempotent_across_refreshes():
 def test_correcting_result_leaves_no_residue():
     eng = PredictionEngine(StaticProvider())
     base = eng.teams["URU"].elo
-    eng.update_real_score("H11", 0, 4)
-    eng.update_real_score("H11", 1, 1)  # corrige: era empate
+    eng.update_real_score("H32", 4, 0)
+    eng.update_real_score("H32", 1, 1)  # corrige: era empate
     boosted = base < eng.teams["URU"].elo
     assert boosted  # empate com a Espanha ainda rende pontos ao URU
     delta_draw = eng.teams["URU"].elo - base
     # Reinsere a goleada e volta ao empate: delta idêntico (sem resíduo).
-    eng.update_real_score("H11", 0, 4)
-    eng.update_real_score("H11", 1, 1)
+    eng.update_real_score("H32", 4, 0)
+    eng.update_real_score("H32", 1, 1)
     assert abs((eng.teams["URU"].elo - base) - delta_draw) < 1e-9
 
 
 def test_reset_restores_base_ratings():
     eng = PredictionEngine(StaticProvider())
     base = eng.teams["ESP"].elo
-    eng.update_real_score("H11", 0, 4)
+    eng.update_real_score("H32", 4, 0)
     assert eng.teams["ESP"].elo != base
     eng.reset()
     assert eng.teams["ESP"].elo == base
@@ -95,5 +95,5 @@ def test_knockout_result_recalibrates_elo():
 def test_recalibration_can_be_disabled():
     eng = PredictionEngine(StaticProvider(), recalibrate_elo=False)
     base = eng.teams["URU"].elo
-    eng.update_real_score("H11", 0, 4)
+    eng.update_real_score("H32", 4, 0)
     assert eng.teams["URU"].elo == base

@@ -29,6 +29,8 @@ def match_to_dict(
     # Rodada da fase de grupos (1–3); ausente nas eliminatórias.
     if match.matchday is not None:
         out["matchday"] = match.matchday
+    if match.kickoff_utc is not None:
+        out["kickoff_utc"] = match.kickoff_utc
 
     if match.prediction is not None:
         p = match.prediction

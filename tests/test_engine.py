@@ -45,8 +45,8 @@ def test_update_real_score_recomputes_standings():
     eng = PredictionEngine(StaticProvider())
     # Espanha lidera o grupo H por previsão.
     assert eng.standings.position("H", 1).team_id == "ESP"
-    # Insere uma goleada do Uruguai sobre a Espanha (H11 = ESP x URU).
-    eng.update_real_score("H11", 0, 4)
+    # Insere uma goleada do Uruguai sobre a Espanha (H32 = URU x ESP).
+    eng.update_real_score("H32", 4, 0)
     table_h = eng.standings.tables["H"]
     uru = next(r for r in table_h if r.team_id == "URU")
     assert uru.goals_for >= 4  # resultado real refletido na tabela
@@ -67,10 +67,10 @@ def test_knockout_result_propagates_to_next_phase():
     underdog = m73.away_team if fav == m73.home_team else m73.home_team
     score = (0, 3) if underdog == m73.away_team else (3, 0)
     eng.update_real_score("m73", *score)
-    # m89 (oitavas) = vencedor de m73 x vencedor de m74.
-    m89 = eng._find_match("m89")
-    assert underdog in (m89.home_team, m89.away_team)
-    assert fav not in (m89.home_team, m89.away_team)
+    # m90 (oitavas) = vencedor de m73 x vencedor de m75 (chaveamento oficial).
+    m90 = eng._find_match("m90")
+    assert underdog in (m90.home_team, m90.away_team)
+    assert fav not in (m90.home_team, m90.away_team)
 
 
 def test_knockout_real_result_marks_finished():

@@ -47,7 +47,7 @@ def test_get_elo_ratings_shows_live_delta():
     out = _call("get_elo_ratings", {"top": 48})
     assert out["recalibration_enabled"] is True
     assert all(t["delta_vs_base"] == 0 for t in out["teams"])
-    _call("update_real_score", {"match_id": "H11", "home_goals": 0, "away_goals": 4})
+    _call("update_real_score", {"match_id": "H32", "home_goals": 4, "away_goals": 0})
     out = _call("get_elo_ratings", {"top": 48})
     uru = next(t for t in out["teams"] if t["id"] == "URU")
     esp = next(t for t in out["teams"] if t["id"] == "ESP")
@@ -103,6 +103,21 @@ def test_resolve_playoff_adjusts_team():
     grp = _call("get_group_standings", {"group": "B"})
     names = [r["team"]["name"] for r in grp["table"]]
     assert "Bósnia" in names
+
+
+def test_get_matches_by_date_window():
+    out = _call("get_matches_by_date", {"start_date": "2026-06-11", "days": 2})
+    # Janela 11–12/06 (UTC): abertura A11, depois A12 e B11.
+    ids = [m["match_id"] for m in out["matches"]]
+    assert ids[0] == "A11"
+    assert out["match_count"] == len(ids) >= 3
+    assert all(m["kickoff_utc"] for m in out["matches"])
+
+
+def test_get_matches_by_date_defaults_to_today():
+    out = _call("get_matches_by_date", {})
+    assert out["days"] == 5
+    assert out["start_date"]  # default = hoje (UTC)
 
 
 def test_simulate_tournament_returns_full_scenario():
