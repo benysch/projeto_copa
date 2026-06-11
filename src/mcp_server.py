@@ -14,6 +14,7 @@ Ferramentas:
     get_match(match_id)                      -> detalhe de uma partida
     get_group_standings(group)               -> classificação de um grupo
     get_title_probabilities(top, n_sims)     -> probabilidades por fase (MC)
+    simulate_tournament(seed)                -> UM cenário amostrado completo
     resolve_playoff(slot_id, name, elo)      -> corrige nome/Elo de uma seleção
     list_phases()                            -> fases disponíveis e contagens
     sync_results()                           -> puxa placares da fonte ao vivo
@@ -137,7 +138,7 @@ def get_match(match_id: str) -> dict:
     match = engine._find_match(match_id)
     if match is None:
         raise ValueError(f"Partida desconhecida: {match_id}")
-    return match_to_dict(match, engine.teams)
+    return match_to_dict(match, engine.teams, include_scorelines=True)
 
 
 @mcp.tool
@@ -179,6 +180,22 @@ def get_title_probabilities(top: int = 16, n_sims: int = 10000) -> dict:
             for tid, probs in result.table(engine.teams, top=top)
         ],
     }
+
+
+@mcp.tool
+def simulate_tournament(seed: Optional[int] = None) -> dict:
+    """Sorteia UM cenário completo e plausível do torneio (amostra de Monte Carlo).
+
+    Ao contrário de get_phase_predictions — que mostra o desfecho MAIS PROVÁVEL
+    de cada jogo (favoritos sempre vencem, quase nunca há empates, zebras ou
+    goleadas) —, esta ferramenta AMOSTRA um torneio inteiro da distribuição do
+    modelo: empates, zebras e goleadas aparecem na frequência estatisticamente
+    esperada, sinalizados em `flags` e contabilizados em `summary`.
+
+    Jogos de grupo já disputados ficam fixados (condicionamento 'vivo'). Cada
+    chamada gera um cenário diferente; passe `seed` para reproduzir o mesmo.
+    """
+    return engine.sample_scenario(seed=seed)
 
 
 @mcp.tool

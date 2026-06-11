@@ -5,8 +5,16 @@ from __future__ import annotations
 from ..model.schemas import Match, Phase, Team
 
 
-def match_to_dict(match: Match, teams: dict[str, Team]) -> dict:
-    """Converte uma partida (com previsão e/ou resultado real) num dict limpo."""
+def match_to_dict(
+    match: Match,
+    teams: dict[str, Team],
+    include_scorelines: bool = False,
+) -> dict:
+    """Converte uma partida (com previsão e/ou resultado real) num dict limpo.
+
+    `include_scorelines` acrescenta os placares mais prováveis com as suas
+    probabilidades (vista de detalhe; omitido nas listagens por fase).
+    """
     def name(tid: str) -> str:
         return teams[tid].name if tid in teams else tid
 
@@ -37,6 +45,11 @@ def match_to_dict(match: Match, teams: dict[str, Team]) -> dict:
                 "away": round(p.prob_away * 100, 1),
             },
         }
+        if include_scorelines and p.top_scorelines:
+            out["prediction"]["top_scorelines"] = [
+                {"score": f"{h}-{a}", "probability_pct": round(prob * 100, 1)}
+                for (h, a), prob in p.top_scorelines
+            ]
         # Alerta de equilíbrio: o vencedor previsto é só a moda dos desfechos;
         # aqui sinalizamos quando ele não é um favorito de verdade. Apenas na
         # fase de grupos, onde o empate é um desfecho final possível.

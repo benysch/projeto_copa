@@ -30,7 +30,7 @@ def test_all_tools_registered():
     assert {
         "get_phase_predictions", "update_real_score", "get_match",
         "get_group_standings", "get_title_probabilities", "resolve_playoff",
-        "list_phases", "sync_results", "get_elo_ratings",
+        "list_phases", "sync_results", "get_elo_ratings", "simulate_tournament",
     } <= names
 
 
@@ -103,6 +103,29 @@ def test_resolve_playoff_adjusts_team():
     grp = _call("get_group_standings", {"group": "B"})
     names = [r["team"]["name"] for r in grp["table"]]
     assert "Bósnia" in names
+
+
+def test_simulate_tournament_returns_full_scenario():
+    sc = _call("simulate_tournament", {"seed": 42})
+    assert sc["kind"] == "sampled_scenario"
+    assert len(sc["group_stage"]["matches"]) == 72
+    assert sc["champion"]["id"] in engine.teams
+    # Reprodutível com a mesma seed.
+    assert _call("simulate_tournament", {"seed": 42}) == sc
+
+
+def test_simulate_tournament_respects_real_results():
+    _call("update_real_score", {"match_id": "A11", "home_goals": 3, "away_goals": 0})
+    sc = _call("simulate_tournament", {"seed": 5})
+    entry = next(m for m in sc["group_stage"]["matches"] if m["match_id"] == "A11")
+    assert entry["fixed"] is True
+    assert entry["score"] == "3-0"
+
+
+def test_get_match_includes_top_scorelines():
+    out = _call("get_match", {"match_id": "A11"})
+    lines = out["prediction"]["top_scorelines"]
+    assert lines and all(0 <= s["probability_pct"] <= 100 for s in lines)
 
 
 def test_list_phases_counts():

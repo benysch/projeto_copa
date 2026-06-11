@@ -16,6 +16,7 @@ from ..data.providers import DataProvider, StaticProvider
 from ..model import elo as elo_model
 from ..model.bracket import build_round_of_32, simulate_knockouts
 from ..model.montecarlo import MonteCarloResult, run_monte_carlo
+from ..model.scenario import sample_scenario
 from ..model.schemas import PHASE_ORDER, Match, Phase, Score, Team
 from ..model.simulator import DEFAULT_PARAMS, ModelParams, predict_match
 from ..model.standings import GroupStandings, compute_all_standings
@@ -186,6 +187,17 @@ class PredictionEngine:
             params=self.params,
             seed=seed,
             group_matches=self.group_matches,
+        )
+
+    def sample_scenario(self, seed: int | None = None) -> dict:
+        """UM torneio completo sorteado da distribuição do modelo.
+
+        Complementa `probabilities`: em vez de agregados, devolve um cenário
+        plausível jogo a jogo (com empates, zebras e goleadas na frequência
+        esperada), condicionado aos jogos de grupo já disputados.
+        """
+        return sample_scenario(
+            self.teams, self.group_matches, params=self.params, seed=seed
         )
 
     def elo_delta(self, team_id: str) -> float:
