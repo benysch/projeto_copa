@@ -101,6 +101,13 @@ preços, vig removido), exibe modelo x mercado x blend (pool logarítmico com
 peso `blend_weight` no modelo) e o `edge_pp` de cada seleção. Requer internet;
 cache de 5 minutos (`src/data/polymarket.py`).
 
+`calibrate_to_market(weight, n_sims, iterations)` ANCORA o modelo no mercado
+(opt-in, reversível): ajusta o rating efetivo de cada seleção até o Monte
+Carlo casar com o blend modelo^w·mercado^(1-w) — a partir daí TODAS as
+previsões (placar, grupos, cenários, título) refletem o mercado. Só calibra
+seleções com título >= 0,5% em alguma fonte (abaixo é piso de preço/ruído).
+`reset_market_calibration()` volta ao modelo puro.
+
 `simulate_tournament(seed=None)` sorteia UM torneio completo da distribuição
 do modelo — ao contrário das previsões por jogo (que mostram o desfecho mais
 provável, em que o favorito sempre vence), num cenário amostrado empates,

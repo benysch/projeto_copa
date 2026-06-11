@@ -75,6 +75,61 @@ def test_market_comparison_blends_and_ranks():
     assert blend_total == pytest.approx(100.0, abs=0.5)
 
 
+def test_calibrate_to_market_moves_probabilities_toward_target():
+    """Mercado que adora Portugal e desconfia da Argentina move o MC."""
+    eng = PredictionEngine()
+    pure = eng.probabilities(n_sims=2000, seed=5).probabilities
+    market = {tid: 1.0 / 48 for tid in eng.teams}  # base uniforme
+    market["POR"], market["ARG"] = 0.30, 0.005
+    total = sum(market.values())
+    market = {tid: p / total for tid, p in market.items()}
+
+    out = eng.calibrate_to_market(
+        weight=0.5, n_sims=2000, iterations=6, seed=7,
+        market_probs=market, market_vig_pct=0.0,
+    )
+    assert eng.market_calibration is not None
+    rows = {r["team_id"]: r for r in out["teams"]}
+    assert rows["POR"]["offset_elo"] > 0 > rows["ARG"]["offset_elo"]
+    calibrated = eng.probabilities(n_sims=2000, seed=9).probabilities
+    assert calibrated["POR"]["champion"] > pure["POR"]["champion"]
+    assert calibrated["ARG"]["champion"] < pure["ARG"]["champion"]
+    # Convergência razoável ao alvo (distância de variação total).
+    assert out["tv_distance_pct"] < 10.0
+
+
+def test_reset_market_calibration_restores_pure_model():
+    eng = PredictionEngine()
+    market = {tid: 1.0 / 48 for tid in eng.teams}
+    eng.calibrate_to_market(
+        n_sims=500, iterations=3, seed=1,
+        market_probs=market, market_vig_pct=0.0,
+    )
+    assert any(t.form_modifier != 0 for t in eng.teams.values())
+    out = eng.reset_market_calibration()
+    assert out["was_active"] is True
+    assert eng.market_calibration is None
+    assert all(t.form_modifier == 0 for t in eng.teams.values())
+    # Reset de novo é no-op.
+    assert eng.reset_market_calibration()["was_active"] is False
+
+
+def test_recalibrating_does_not_accumulate_offsets():
+    eng = PredictionEngine()
+    market = {tid: 1.0 / 48 for tid in eng.teams}
+    market["POR"] = 0.30
+    total = sum(market.values())
+    market = {tid: p / total for tid, p in market.items()}
+    kw = dict(n_sims=500, iterations=3, seed=2,
+              market_probs=market, market_vig_pct=0.0)
+    first = eng.calibrate_to_market(**kw)
+    second = eng.calibrate_to_market(**kw)
+    por1 = next(r for r in first["teams"] if r["team_id"] == "POR")
+    por2 = next(r for r in second["teams"] if r["team_id"] == "POR")
+    # Mesmos parâmetros e seed -> mesmo offset (parte sempre do modelo puro).
+    assert por2["offset_elo"] == pytest.approx(por1["offset_elo"], abs=1e-6)
+
+
 def test_blend_weight_extremes():
     eng = PredictionEngine()
     market = {"ESP": 0.50, "FRA": 0.50}

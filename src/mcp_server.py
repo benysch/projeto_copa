@@ -17,6 +17,8 @@ Ferramentas:
     simulate_tournament(seed)                -> UM cenário amostrado completo
     get_matches_by_date(start_date, days)    -> jogos da janela de datas
     get_market_odds(top, n_sims, blend)      -> modelo x Polymarket x blend
+    calibrate_to_market(weight, ...)         -> ancora os ratings no mercado
+    reset_market_calibration()               -> volta ao modelo puro
     resolve_playoff(slot_id, name, elo)      -> corrige nome/Elo de uma seleção
     list_phases()                            -> fases disponíveis e contagens
     sync_results()                           -> puxa placares da fonte ao vivo
@@ -243,6 +245,38 @@ def get_market_odds(
         {"team": _named(r.pop("team_id")), **r} for r in result["teams"][:top]
     ]
     return result
+
+
+@mcp.tool
+def calibrate_to_market(
+    weight: float = 0.5, n_sims: int = 4000, iterations: int = 8
+) -> dict:
+    """ANCORA o modelo no mercado: todas as previsões passam a refletir o blend.
+
+    Ajusta o rating efetivo de cada seleção (offset de Elo em form_modifier)
+    até as probabilidades de título do Monte Carlo casarem com o pool
+    logarítmico modelo^weight · mercado^(1-weight). A partir daí, TODAS as
+    ferramentas (placar por jogo, cenários, grupos, título) usam os ratings
+    ancorados. `weight`: 1.0 = modelo puro (sem efeito), 0.0 = só mercado.
+
+    Reversível com reset_market_calibration(); chamar de novo recalibra do
+    zero. Devolve os offsets aplicados e a qualidade da convergência
+    (tv_distance_pct: distância de variação total ao alvo, em p.p.).
+    Requer internet (Polymarket). Demora ~10-20s (iterations x n_sims).
+    """
+    out = engine.calibrate_to_market(
+        weight=weight, n_sims=n_sims, iterations=iterations
+    )
+    out["teams"] = [
+        {"team": _named(r.pop("team_id")), **r} for r in out["teams"][:16]
+    ]
+    return out
+
+
+@mcp.tool
+def reset_market_calibration() -> dict:
+    """Remove a âncora do mercado: volta ao modelo puro (Elo + resultados reais)."""
+    return engine.reset_market_calibration()
 
 
 @mcp.tool
