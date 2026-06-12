@@ -10,6 +10,7 @@ Executar:
 
 Ferramentas:
     get_phase_predictions(phase_name)        -> previsões de uma fase
+    get_bolao_picks(bolao, phase_name)       -> palpites ótimos p/ um bolão
     update_real_score(match_id, home, away)  -> insere resultado e recalcula
     get_match(match_id)                      -> detalhe de uma partida
     get_group_standings(group)               -> classificação de um grupo
@@ -123,6 +124,49 @@ def get_phase_predictions(phase_name: str, matchday: Optional[int] = None) -> di
         "matchday": matchday,
         "match_count": len(matches),
         "matches": [match_to_dict(m, engine.teams) for m in matches],
+    }
+
+
+_BOLAO_ALIASES = {
+    "pragma": "pragma", "copa_pragma": "pragma", "bolaoai": "pragma",
+    "app": "app", "imagens": "app", "familia": "app",
+}
+
+
+@mcp.tool
+def get_bolao_picks(
+    bolao: str,
+    phase_name: str,
+    matchday: Optional[int] = None,
+    top: int = 3,
+) -> dict:
+    """Palpites ÓTIMOS por valor esperado para um bolão, jogo a jogo.
+
+    Diferente de `get_phase_predictions` (placar modal = mais provável), aqui
+    cada palpite maximiza E[pontos] sob a função de pontos do bolão, calculado
+    exatamente sobre a grade analítica de placares.
+
+    `bolao`: "pragma" (Copa Pragma / bolaoai: 2 pts exato, 1 pt vencedor,
+    multiplicador por fase + bónus de avanço no mata-mata) ou "app" (6/4/3/1 e
+    empates 6/3; +3 por vencedor dos pênaltis em palpite de empate).
+
+    Devolve, por jogo: os `top` melhores palpites com E[pontos] (incluindo quem
+    avança / vencedor dos pênaltis quando aplicável), o E[pontos] do placar
+    modal e o ganho do palpite ótimo sobre ele (`ev_gain_vs_modal`).
+    """
+    key = bolao.strip().lower().replace("-", "_").replace(" ", "_")
+    if key not in _BOLAO_ALIASES:
+        raise ValueError(f"Bolão desconhecido: '{bolao}'. Válidos: pragma, app")
+    phase = _resolve_phase(phase_name)
+    if matchday is not None and matchday not in (1, 2, 3):
+        raise ValueError("matchday deve ser 1, 2 ou 3 (rodadas da fase de grupos).")
+    picks = engine.bolao_picks(_BOLAO_ALIASES[key], phase, top=top, matchday=matchday)
+    return {
+        "bolao": _BOLAO_ALIASES[key],
+        "phase": phase.value,
+        "matchday": matchday,
+        "match_count": len(picks),
+        "matches": picks,
     }
 
 

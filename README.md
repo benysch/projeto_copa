@@ -76,14 +76,32 @@ python -m benchmarks.compare_sportiq
 ## Servidor MCP
 
 Expõe o motor vivo como ferramentas MCP (`get_phase_predictions`,
-`update_real_score`, `get_group_standings`, `get_title_probabilities`,
-`simulate_tournament`, `get_matches_by_date`, `get_market_odds`,
-`resolve_playoff`, `get_match`, `list_phases`, `sync_results`,
-`get_elo_ratings`).
+`get_bolao_picks`, `update_real_score`, `get_group_standings`,
+`get_title_probabilities`, `simulate_tournament`, `get_matches_by_date`,
+`get_market_odds`, `resolve_playoff`, `get_match`, `list_phases`,
+`sync_results`, `get_elo_ratings`).
 
 `get_phase_predictions(phase_name, matchday=None)` aceita um `matchday` opcional
 (1–3) para filtrar a rodada na fase de grupos — ex.: `matchday=1` devolve só os
 24 jogos da 1ª rodada. Cada jogo de grupos inclui o campo `matchday`.
+
+## Palpites para bolões (funções objetivo)
+
+O `predicted_score` é o placar **modal** (maximiza P(placar exato)), mas cada
+bolão tem a sua função de pontos — e o palpite ótimo maximiza **E[pontos]** sob
+essa função, calculado exatamente sobre a grade analítica de placares
+(`src/model/bolao.py`, ferramenta `get_bolao_picks(bolao, phase_name)`).
+
+Bolões configurados:
+
+| `bolao` | Regras | Efeito prático |
+|---|---|---|
+| `pragma` | Copa Pragma (bolaoai): exato 2 / vencedor 1; multiplicador 2x–10x por fase; bónus +2..+10 por acertar quem avança (pênaltis contam) | Nos grupos o ótimo ≈ modal; no mata-mata o palpite tem de ser decisivo e o bónus de avanço pesa na escolha do lado |
+| `app` | Capturas IMG_1884–1886: exato 6 / vencedor+gols de um time 4 / vencedor 3 / gols de um time 1; empates 6/3; pênaltis 9/6/6/3 | O crédito parcial muda o ótimo (~metade dos jogos): placares "magros" tipo 1-0 superam 2-1; em mata-mata equilibrado, palpitar empate + vencedor dos pênaltis é o ótimo |
+
+Aproximações documentadas no módulo: a grade é tratada como o resultado em
+campo (90'+prorrogação) e P(avançar/pênaltis | empate) usa a redistribuição
+proporcional da massa de empate (convenção do projeto).
 
 `sync_results()` puxa os placares mais recentes da fonte ao vivo e recalcula
 tudo; `get_elo_ratings(top)` mostra o Elo ATUAL de cada seleção (recalibrado

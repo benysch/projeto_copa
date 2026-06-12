@@ -20,3 +20,8 @@ env/
 .vscode/
 .idea/
 .DS_Store
+*:Zone.Identifier
+
+# Documentos pessoais dos bolões (regras codificadas em src/model/bolao.py)
+regulamento-copa-pragma-2026.pdf
+IMG_188[456].png

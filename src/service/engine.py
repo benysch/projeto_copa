@@ -19,11 +19,18 @@ from ..data.calendar import parse_kickoff
 from ..data.polymarket import implied_title_probabilities
 from ..data.providers import DataProvider, StaticProvider
 from ..model import elo as elo_model
+from ..model import bolao
 from ..model.bracket import build_round_of_32, simulate_knockouts
 from ..model.montecarlo import MonteCarloResult, run_monte_carlo
 from ..model.scenario import sample_scenario
 from ..model.schemas import PHASE_ORDER, Match, Phase, Score, Team
-from ..model.simulator import DEFAULT_PARAMS, ModelParams, predict_match
+from ..model.simulator import (
+    DEFAULT_PARAMS,
+    ModelParams,
+    expected_goals,
+    predict_match,
+    score_matrix,
+)
 from ..model.standings import GroupStandings, compute_all_standings
 
 
@@ -176,6 +183,64 @@ class PredictionEngine:
         if phase is Phase.GROUP_STAGE:
             return self.group_matches
         return self.rounds.get(phase, [])
+
+    def bolao_picks(
+        self,
+        ruleset: str,
+        phase: Phase,
+        top: int = 3,
+        matchday: int | None = None,
+    ) -> list[dict]:
+        """Palpites ótimos (máx. E[pontos]) de uma fase para um bolão.
+
+        Para cada jogo NÃO disputado: recalcula a grade analítica de placares
+        e devolve os `top` palpites por valor esperado sob a função de pontos
+        do bolão (`src/model/bolao.py`), mais o E[pontos] do placar modal
+        (`predicted_score`) para comparação. Jogos já disputados saem apenas
+        com o resultado real.
+        """
+        results: list[dict] = []
+        for m in self.get_phase(phase):
+            if matchday is not None and m.matchday != matchday:
+                continue
+            home, away = self.teams[m.home_team], self.teams[m.away_team]
+            entry: dict = {
+                "match_id": m.match_id,
+                "phase": m.phase.value,
+                "home": home.name,
+                "away": away.name,
+                "matchday": m.matchday,
+                "status": m.status.value,
+            }
+            if m.is_finished:
+                entry["real_score"] = str(m.real_score)
+                results.append(entry)
+                continue
+            matrix = score_matrix(*expected_goals(home, away, self.params), self.params)
+            picks = bolao.best_picks(matrix, ruleset, phase, top=top)
+            entry["picks"] = [self._pick_to_dict(p, home, away) for p in picks]
+            if m.prediction is not None:
+                ps = m.prediction.predicted_score
+                modal = (ps.home_goals, ps.away_goals)
+                entry["modal_score"] = f"{modal[0]}-{modal[1]}"
+                entry["modal_expected_points"] = round(
+                    bolao.evaluate_pick(matrix, modal, ruleset, phase), 3
+                )
+                entry["ev_gain_vs_modal"] = round(
+                    picks[0]["expected_points"] - entry["modal_expected_points"], 3
+                )
+            results.append(entry)
+        return results
+
+    @staticmethod
+    def _pick_to_dict(pick: dict, home: Team, away: Team) -> dict:
+        h, a = pick["score"]
+        out = {"score": f"{h}-{a}", "expected_points": round(pick["expected_points"], 3)}
+        if "advancer_home" in pick:
+            out["advancer"] = home.name if pick["advancer_home"] else away.name
+        if "penalty_winner_home" in pick:
+            out["penalty_winner"] = home.name if pick["penalty_winner_home"] else away.name
+        return out
 
     def update_real_score(self, match_id: str, home_goals: int, away_goals: int) -> Match:
         """Insere/atualiza um resultado real e recalcula as fases seguintes."""
