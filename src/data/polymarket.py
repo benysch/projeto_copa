@@ -46,6 +46,74 @@ _QUESTION_SUFFIX = " win the 2026 fifa world cup?"
 
 _cache: dict[str, tuple[float, dict]] = {}
 
+# Alguns provedores brasileiros bloqueiam a resolução DNS de polymarket.com
+# (sites de aposta não licenciados). O bloqueio é SÓ no DNS: resolvendo o nome
+# por DNS-over-HTTPS (Cloudflare) e conectando pelo IP com o SNI correto, a
+# API responde normalmente.
+_DOH_URL = "https://1.1.1.1/dns-query"
+_GAMMA_HOST = "gamma-api.polymarket.com"
+
+
+def _resolve_via_doh(host: str) -> str:
+    """Resolve `host` por DNS-over-HTTPS; devolve o primeiro registro A."""
+    import requests
+
+    resp = requests.get(
+        _DOH_URL,
+        params={"name": host, "type": "A"},
+        headers={"accept": "application/dns-json"},
+        timeout=10,
+    )
+    resp.raise_for_status()
+    answers = resp.json().get("Answer", [])
+    for a in answers:
+        if a.get("type") == 1:  # registro A
+            return a["data"]
+    raise ValueError(f"DoH sem registro A para {host}")
+
+
+def _get_json_via_ip(path: str, params: dict) -> list | dict:
+    """GET na Gamma API conectando pelo IP (DoH), com SNI/Host do hostname.
+
+    TLS continua VERIFICADO contra o certificado de gamma-api.polymarket.com
+    (server_hostname no handshake); só a resolução de nome é contornada.
+    """
+    import http.client
+    import socket
+    import ssl
+    from urllib.parse import urlencode
+
+    ip = _resolve_via_doh(_GAMMA_HOST)
+    ctx = ssl.create_default_context()
+    sock = ctx.wrap_socket(
+        socket.create_connection((ip, 443), timeout=30),
+        server_hostname=_GAMMA_HOST,
+    )
+    conn = http.client.HTTPSConnection(_GAMMA_HOST, 443, timeout=30)
+    conn.sock = sock  # connect() é pulado quando o socket já existe
+    try:
+        conn.request("GET", f"{path}?{urlencode(params)}")
+        resp = conn.getresponse()
+        if resp.status >= 400:
+            raise ValueError(f"Gamma API via IP devolveu HTTP {resp.status}")
+        return json.loads(resp.read())
+    finally:
+        conn.close()
+
+
+def _get_event_payload(slug: str) -> list | dict:
+    """Busca o payload de /events; cai para IP+DoH se o DNS local falhar."""
+    import requests
+
+    try:
+        resp = requests.get(f"{GAMMA_API}/events", params={"slug": slug}, timeout=30)
+        resp.raise_for_status()
+        return resp.json()
+    except requests.exceptions.ConnectionError as exc:
+        if "NameResolutionError" not in repr(exc):
+            raise
+        return _get_json_via_ip("/events", {"slug": slug})
+
 
 def fetch_event(slug: str = TITLE_EVENT_SLUG) -> dict:
     """Busca um evento da Gamma API (com cache de 5 minutos)."""
@@ -54,13 +122,7 @@ def fetch_event(slug: str = TITLE_EVENT_SLUG) -> dict:
     if hit and now - hit[0] < _CACHE_TTL_SECONDS:
         return hit[1]
 
-    import requests  # import local: dependência só é exigida quando usada
-
-    resp = requests.get(
-        f"{GAMMA_API}/events", params={"slug": slug}, timeout=30
-    )
-    resp.raise_for_status()
-    payload = resp.json()
+    payload = _get_event_payload(slug)
     if not payload:
         raise ValueError(f"Evento Polymarket não encontrado: '{slug}'")
     event = payload[0]
