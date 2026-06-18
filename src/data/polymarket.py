@@ -18,6 +18,16 @@ GAMMA_API = "https://gamma-api.polymarket.com"
 TITLE_EVENT_SLUG = "world-cup-winner"
 _CACHE_TTL_SECONDS = 300.0
 
+# gamma-api.polymarket.com publica AAAA (IPv6) além de A (IPv4). Em redes sem
+# rota IPv6 (ex.: WSL) o requests tenta o IPv6 primeiro e morre com "Network is
+# unreachable" antes de chegar no IPv4 que funciona. Preferimos IPv4 no processo.
+try:  # pragma: no cover - depende do ambiente de rede
+    import urllib3.util.connection as _u3conn
+
+    _u3conn.HAS_IPV6 = False
+except Exception:
+    pass
+
 # Nome em inglês (como aparece nas perguntas do Polymarket) -> team_id FIFA.
 # Inclui variantes/grafias alternativas observadas em mercados esportivos.
 _NAME_TO_ID: dict[str, str] = {
@@ -110,7 +120,10 @@ def _get_event_payload(slug: str) -> list | dict:
         resp.raise_for_status()
         return resp.json()
     except requests.exceptions.ConnectionError as exc:
-        if "NameResolutionError" not in repr(exc):
+        # Cai para o IP+DoH (IPv4) tanto em bloqueio de DNS quanto em falta de
+        # rota (ex.: só veio AAAA/IPv6 e a rede não tem IPv6).
+        text = repr(exc)
+        if "NameResolutionError" not in text and "Network is unreachable" not in text:
             raise
         return _get_json_via_ip("/events", {"slug": slug})
 
