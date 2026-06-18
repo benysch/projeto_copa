@@ -1,7 +1,7 @@
 """Testes do otimizador de palpites para bolões (src/model/bolao.py).
 
 Os casos das funções de pontos vêm DIRETAMENTE dos exemplos do regulamento da
-Copa Pragma (PDF bolaoai) e das capturas do bolão do app (IMG_1884–1886).
+Copa Pragma (PDF bolaoai) e das capturas do bolão BCF (IMG_1884–1886).
 """
 
 import pytest
@@ -29,7 +29,7 @@ def test_pragma_base_points(pred, actual, pts):
 
 
 # ---------------------------------------------------------------------------
-# Função de pontos — bolão do app (exemplos das capturas)
+# Função de pontos — bolão BCF (exemplos das capturas)
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize(
     "pred, actual, pts",
@@ -44,11 +44,11 @@ def test_pragma_base_points(pred, actual, pts):
         ((1, 3), (3, 1), 0),  # nada
     ],
 )
-def test_app_base_points(pred, actual, pts):
-    assert bolao.app_base_points(*pred, *actual) == pts
+def test_bcf_base_points(pred, actual, pts):
+    assert bolao.bcf_base_points(*pred, *actual) == pts
 
 
-def test_app_penalty_table():
+def test_bcf_penalty_table():
     """Tabela do mata-mata: 9 / 6 / 6 / 3 conforme as capturas."""
     # Grade degenerada: o jogo termina 1-1 com certeza; pênaltis ~proporcionais
     # (grade simétrica => 50/50).
@@ -59,21 +59,21 @@ def test_app_penalty_table():
     assert p_tb == 0.5
 
     # Empate exato + pênaltis: 6 + 3·P(acertar pênaltis) = 6 + 1.5
-    ev = bolao.expected_points_app(matrix, (1, 1), knockout=True, penalty_pick_home=True)
+    ev = bolao.expected_points_bcf(matrix, (1, 1), knockout=True, penalty_pick_home=True)
     assert ev == pytest.approx(7.5)
     # Empate sem exato: 3 + 3·0.5
-    ev = bolao.expected_points_app(matrix, (0, 0), knockout=True, penalty_pick_home=True)
+    ev = bolao.expected_points_bcf(matrix, (0, 0), knockout=True, penalty_pick_home=True)
     assert ev == pytest.approx(4.5)
     # Palpite decisivo nunca pontua pênaltis: só "gols de um time" (away=1)
-    ev = bolao.expected_points_app(matrix, (2, 1), knockout=True)
+    ev = bolao.expected_points_bcf(matrix, (2, 1), knockout=True)
     assert ev == pytest.approx(1.0)
 
 
-def test_app_draw_pick_requires_penalty_winner_in_knockout():
+def test_bcf_draw_pick_requires_penalty_winner_in_knockout():
     n = DEFAULT_PARAMS.max_goals + 1
     matrix = [[1.0 / n**2] * n for _ in range(n)]
     with pytest.raises(ValueError):
-        bolao.expected_points_app(matrix, (1, 1), knockout=True)
+        bolao.expected_points_bcf(matrix, (1, 1), knockout=True)
 
 
 # ---------------------------------------------------------------------------
@@ -109,7 +109,7 @@ def test_pragma_knockout_rejects_draw_picks():
 # ---------------------------------------------------------------------------
 # Otimizador — propriedades gerais
 # ---------------------------------------------------------------------------
-@pytest.mark.parametrize("ruleset", ["pragma", "app"])
+@pytest.mark.parametrize("ruleset", ["pragma", "bcf"])
 @pytest.mark.parametrize("phase", [Phase.GROUP_STAGE, Phase.ROUND_OF_32])
 def test_best_pick_beats_or_ties_modal(ruleset, phase):
     matrix = _real_matrix()
@@ -122,7 +122,7 @@ def test_best_pick_beats_or_ties_modal(ruleset, phase):
 
 def test_best_picks_sorted_and_sized():
     matrix = _real_matrix()
-    picks = bolao.best_picks(matrix, "app", Phase.GROUP_STAGE, top=5)
+    picks = bolao.best_picks(matrix, "bcf", Phase.GROUP_STAGE, top=5)
     assert len(picks) == 5
     evs = [p["expected_points"] for p in picks]
     assert evs == sorted(evs, reverse=True)
@@ -139,7 +139,7 @@ def test_unknown_ruleset_raises():
 # ---------------------------------------------------------------------------
 def test_engine_bolao_picks_group_stage():
     engine = PredictionEngine()
-    picks = engine.bolao_picks("app", Phase.GROUP_STAGE, top=3, matchday=1)
+    picks = engine.bolao_picks("bcf", Phase.GROUP_STAGE, top=3, matchday=1)
     assert len(picks) == 24
     for entry in picks:
         assert entry["matchday"] == 1

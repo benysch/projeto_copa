@@ -34,19 +34,11 @@ Fonte de dados (variável de ambiente WC2026_PROVIDER):
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
 from typing import Optional
 
 from fastmcp import FastMCP
 
-from .data.providers import (
-    ApiFootballProvider,
-    DataProvider,
-    LiveScoreMcpProvider,
-    LocalFeedProvider,
-    StaticProvider,
-)
+from .data.providers import build_provider
 from .model.schemas import Phase
 from .service.engine import PredictionEngine
 from .service.serializers import match_to_dict
@@ -59,25 +51,6 @@ mcp = FastMCP(
         "recalcula ao vivo quando resultados reais são inseridos."
     ),
 )
-
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-
-
-def build_provider() -> DataProvider:
-    """Escolhe a fonte de dados pela variável de ambiente WC2026_PROVIDER."""
-    kind = os.environ.get("WC2026_PROVIDER", "static").strip().lower()
-    if kind == "feed":
-        default_feed = _REPO_ROOT / "data" / "sample_feed.json"
-        return LocalFeedProvider(os.environ.get("WC2026_FEED_PATH", str(default_feed)))
-    if kind == "livescore":
-        url = os.environ.get("WC2026_LIVESCORE_URL", "https://livescoremcp.com/sse")
-        return LiveScoreMcpProvider(server_url=url)
-    if kind == "api":
-        return ApiFootballProvider(
-            league=int(os.environ.get("WC2026_API_LEAGUE", "1")),
-            season=int(os.environ.get("WC2026_API_SEASON", "2026")),
-        )
-    return StaticProvider()
 
 
 # Estado vivo partilhado por todas as ferramentas.
@@ -129,7 +102,7 @@ def get_phase_predictions(phase_name: str, matchday: Optional[int] = None) -> di
 
 _BOLAO_ALIASES = {
     "pragma": "pragma", "copa_pragma": "pragma", "bolaoai": "pragma",
-    "app": "app", "imagens": "app", "familia": "app",
+    "bcf": "bcf", "app": "bcf", "imagens": "bcf", "familia": "bcf",
 }
 
 
@@ -147,7 +120,7 @@ def get_bolao_picks(
     exatamente sobre a grade analítica de placares.
 
     `bolao`: "pragma" (Copa Pragma / bolaoai: 2 pts exato, 1 pt vencedor,
-    multiplicador por fase + bónus de avanço no mata-mata) ou "app" (6/4/3/1 e
+    multiplicador por fase + bónus de avanço no mata-mata) ou "bcf" (6/4/3/1 e
     empates 6/3; +3 por vencedor dos pênaltis em palpite de empate).
 
     Devolve, por jogo: os `top` melhores palpites com E[pontos] (incluindo quem
@@ -156,7 +129,7 @@ def get_bolao_picks(
     """
     key = bolao.strip().lower().replace("-", "_").replace(" ", "_")
     if key not in _BOLAO_ALIASES:
-        raise ValueError(f"Bolão desconhecido: '{bolao}'. Válidos: pragma, app")
+        raise ValueError(f"Bolão desconhecido: '{bolao}'. Válidos: pragma, bcf")
     phase = _resolve_phase(phase_name)
     if matchday is not None and matchday not in (1, 2, 3):
         raise ValueError("matchday deve ser 1, 2 ou 3 (rodadas da fase de grupos).")

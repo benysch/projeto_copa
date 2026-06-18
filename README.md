@@ -97,7 +97,7 @@ Bolões configurados:
 | `bolao` | Regras | Efeito prático |
 |---|---|---|
 | `pragma` | Copa Pragma (bolaoai): exato 2 / vencedor 1; multiplicador 2x–10x por fase; bónus +2..+10 por acertar quem avança (pênaltis contam) | Nos grupos o ótimo ≈ modal; no mata-mata o palpite tem de ser decisivo e o bónus de avanço pesa na escolha do lado |
-| `app` | Capturas IMG_1884–1886: exato 6 / vencedor+gols de um time 4 / vencedor 3 / gols de um time 1; empates 6/3; pênaltis 9/6/6/3 | O crédito parcial muda o ótimo (~metade dos jogos): placares "magros" tipo 1-0 superam 2-1; em mata-mata equilibrado, palpitar empate + vencedor dos pênaltis é o ótimo |
+| `bcf` | Capturas IMG_1884–1886: exato 6 / vencedor+gols de um time 4 / vencedor 3 / gols de um time 1; empates 6/3; pênaltis 9/6/6/3 | O crédito parcial muda o ótimo (~metade dos jogos): placares "magros" tipo 1-0 superam 2-1; em mata-mata equilibrado, palpitar empate + vencedor dos pênaltis é o ótimo |
 
 Aproximações documentadas no módulo: a grade é tratada como o resultado em
 campo (90'+prorrogação) e P(avançar/pênaltis | empate) usa a redistribuição

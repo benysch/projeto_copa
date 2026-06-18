@@ -16,7 +16,7 @@ Bolões suportados (`ruleset`):
       (pênaltis contam): +2/+3/+5/+7/+10. No mata-mata o palpite tem de ser
       decisivo (o sistema infere o classificado a partir do placar).
 
-  "app" — bolão do app (capturas IMG_1884–1886):
+  "bcf" — bolão BCF (capturas IMG_1884–1886):
       placar exato 6; vencedor + gols de um time 4; vencedor 3; gols de um
       time sem vencedor 1; empate exato 6; empate sem placar 3. No mata-mata,
       palpite de empate inclui o vencedor dos pênaltis: acertá-lo vale +3
@@ -36,7 +36,7 @@ from __future__ import annotations
 
 from .schemas import Phase
 
-RULESETS = ("pragma", "app")
+RULESETS = ("pragma", "bcf")
 
 # Copa Pragma — multiplicador por fase e bónus por acertar quem avança.
 PRAGMA_MULTIPLIER: dict[Phase, int] = {
@@ -56,8 +56,8 @@ PRAGMA_ADVANCE_BONUS: dict[Phase, int] = {
     Phase.FINAL: 10,
 }
 
-# Bolão do app — bónus por acertar o vencedor dos pênaltis (palpite de empate).
-APP_PENALTY_BONUS = 3
+# Bolão BCF — bónus por acertar o vencedor dos pênaltis (palpite de empate).
+BCF_PENALTY_BONUS = 3
 
 
 def _same_outcome(ph: int, pa: int, ah: int, aa: int) -> bool:
@@ -73,7 +73,7 @@ def pragma_base_points(ph: int, pa: int, ah: int, aa: int) -> int:
     return 0
 
 
-def app_base_points(ph: int, pa: int, ah: int, aa: int) -> int:
+def bcf_base_points(ph: int, pa: int, ah: int, aa: int) -> int:
     """Pontos do palpite (ph, pa) com resultado (ah, aa) — sem pênaltis."""
     if (ph, pa) == (ah, aa):
         return 6
@@ -132,20 +132,20 @@ def expected_points_pragma(
     return ev
 
 
-def expected_points_app(
+def expected_points_bcf(
     matrix: list[list[float]],
     pred: tuple[int, int],
     knockout: bool,
     penalty_pick_home: bool | None = None,
 ) -> float:
-    """E[pontos] do palpite no bolão do app.
+    """E[pontos] do palpite no bolão BCF.
 
     No mata-mata, um palpite de empate exige `penalty_pick_home` (quem vence
-    os pênaltis); palpites decisivos nunca pontuam pênaltis (regra do app).
+    os pênaltis); palpites decisivos nunca pontuam pênaltis (regra do BCF).
     """
     ph, pa = pred
     ev = sum(
-        p * app_base_points(ph, pa, i, j)
+        p * bcf_base_points(ph, pa, i, j)
         for i, row in enumerate(matrix)
         for j, p in enumerate(row)
     )
@@ -155,7 +155,7 @@ def expected_points_app(
         p_tb = tiebreak_probability(matrix)
         p_correct = p_tb if penalty_pick_home else 1.0 - p_tb
         _, p_draw, _ = _draw_split(matrix)
-        ev += APP_PENALTY_BONUS * p_correct * p_draw
+        ev += BCF_PENALTY_BONUS * p_correct * p_draw
     return ev
 
 
@@ -168,7 +168,7 @@ def best_picks(
     """Palpites ordenados por E[pontos] decrescente (os `top` melhores).
 
     Cada item: {"score": (h, a), "expected_points": float} e, quando aplicável,
-    "penalty_winner_home": bool (app, empate no mata-mata) ou
+    "penalty_winner_home": bool (bcf, empate no mata-mata) ou
     "advancer_home": bool (pragma, mata-mata).
     """
     if ruleset not in RULESETS:
@@ -191,14 +191,14 @@ def best_picks(
                 if knockout and i == j:
                     p_tb = tiebreak_probability(matrix)
                     pens_home = p_tb >= 0.5
-                    ev = expected_points_app(matrix, (i, j), knockout, pens_home)
+                    ev = expected_points_bcf(matrix, (i, j), knockout, pens_home)
                     item = {
                         "score": (i, j),
                         "expected_points": ev,
                         "penalty_winner_home": pens_home,
                     }
                 else:
-                    ev = expected_points_app(matrix, (i, j), knockout)
+                    ev = expected_points_bcf(matrix, (i, j), knockout)
                     item = {"score": (i, j), "expected_points": ev}
             candidates.append(item)
     candidates.sort(key=lambda c: (-c["expected_points"], sum(c["score"]), c["score"]))
@@ -218,5 +218,5 @@ def evaluate_pick(
         return expected_points_pragma(matrix, pred, phase)
     if phase.is_knockout and pred[0] == pred[1]:
         p_tb = tiebreak_probability(matrix)
-        return expected_points_app(matrix, pred, True, p_tb >= 0.5)
-    return expected_points_app(matrix, pred, phase.is_knockout)
+        return expected_points_bcf(matrix, pred, True, p_tb >= 0.5)
+    return expected_points_bcf(matrix, pred, phase.is_knockout)
