@@ -1,0 +1,12 @@
+[Unit]
+Description=CopaAI - bot conversacional da Copa 2026 no Telegram
+After=network-online.target
+
+[Service]
+WorkingDirectory=/home/murie/projetos/projeto_copa
+ExecStart=/home/murie/projetos/projeto_copa/.venv/bin/python -m src.telegram_bot
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

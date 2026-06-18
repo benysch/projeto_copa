@@ -22,6 +22,10 @@ env/
 .DS_Store
 *:Zone.Identifier
 
+# Logs de runtime (bot/briefing)
+data/*.log
+
 # Documentos pessoais dos bolões (regras codificadas em src/model/bolao.py)
 regulamento-copa-pragma-2026.pdf
 IMG_188[456].png
+.env
