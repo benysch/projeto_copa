@@ -38,6 +38,7 @@ from .daily_briefing import (
 )
 from .data.calendar import parse_kickoff
 from .data.providers import build_provider
+from .model.schemas import Match, Phase
 from .service.engine import PredictionEngine
 
 _REFRESH_SECONDS = 600  # idade máxima do estado antes de re-sincronizar
@@ -52,7 +53,10 @@ HELP = """🤖 <b>CopaAI — o que sei responder</b>
 • <b>elo</b> — ranking de força atual
 • <b>Brasil</b> (nome de seleção) — próximos jogos dela
 
-Os palpites 🎯 são os de maior valor esperado em cada bolão (Pragma e BCF)."""
+Os palpites 🎯 são os de maior valor esperado em cada bolão (Pragma e BCF).
+
+<i>Admin:</i> <code>/resultado m75 2 1</code> registra um placar real
+(<code>m74 1 1 pen PAR</code> para pênaltis; <code>A11 3 0</code> para grupos)."""
 
 
 def _normalize(text: str) -> str:
@@ -62,9 +66,12 @@ def _normalize(text: str) -> str:
 
 
 class Bot:
-    def __init__(self, token: str, allowed_chats: set[int]):
+    def __init__(
+        self, token: str, allowed_chats: set[int], admin_chats: set[int] | None = None
+    ):
         self.token = token
         self.allowed_chats = allowed_chats
+        self.admin_chats = admin_chats or set()
         self.engine = PredictionEngine(build_provider())
         self._last_refresh = time.monotonic()
 
@@ -121,6 +128,84 @@ class Bot:
             return team_msgs
 
         return [HELP]
+
+    # ------------------------------------------------------------------
+    # Atualização da base (admin): /resultado <jogo> <casa> <fora> [pen <time>]
+    # ------------------------------------------------------------------
+    _USAGE = (
+        "Uso: <code>/resultado &lt;jogo&gt; &lt;casa&gt; &lt;fora&gt; [pen &lt;time&gt;]</code>\n"
+        "Ex.: <code>/resultado m75 2 1</code> · "
+        "<code>/resultado A11 3 0</code> · "
+        "<code>/resultado m74 1 1 pen PAR</code>"
+    )
+
+    @staticmethod
+    def _canonical_match_id(raw: str) -> str:
+        """Normaliza o id: 'a11'->'A11' (grupo), 'M73'/'m73'->'m73' (mata-mata)."""
+        s = raw.strip()
+        if re.fullmatch(r"[mM]\d{1,3}", s):
+            return "m" + s[1:]
+        return s.upper()
+
+    def _resolve_team(self, match: Match, token: str) -> str | None:
+        """Resolve um token (código ou nome) para o team_id de um dos dois times."""
+        tok = _normalize(token)
+        for tid in (match.home_team, match.away_team):
+            if tok == tid.lower() or tok in _normalize(self.engine.teams[tid].name):
+                return tid
+        return None
+
+    def _update_result(self, text: str) -> str:
+        parts = text.split()
+        if len(parts) < 4:
+            return self._USAGE
+        mid = self._canonical_match_id(parts[1])
+        try:
+            hg, ag = int(parts[2]), int(parts[3])
+        except ValueError:
+            return "Placar inválido. " + self._USAGE
+        if hg < 0 or ag < 0:
+            return "Placar não pode ser negativo. " + self._USAGE
+
+        pen_token: str | None = None
+        if len(parts) >= 5:
+            if _normalize(parts[4]) != "pen" or len(parts) < 6:
+                return "Pênaltis: use <code>… pen &lt;time&gt;</code>. " + self._USAGE
+            pen_token = parts[5]
+
+        match = self.engine._find_match(mid)
+        if match is None:
+            return (
+                f"Jogo <b>{html.escape(parts[1])}</b> não existe. Ids: "
+                f"<code>A11</code> (grupo) ou <code>m73</code>–<code>m104</code> (mata-mata)."
+            )
+
+        pen: str | None = None
+        if pen_token is not None:
+            pen = self._resolve_team(match, pen_token)
+            if pen is None:
+                opts = f"{match.home_team}/{match.away_team}"
+                return f"Time '{html.escape(pen_token)}' não joga em {mid} ({opts})."
+
+        try:
+            m = self.engine.update_real_score(
+                mid, hg, ag, penalty_winner=pen, persist=True
+            )
+        except (KeyError, ValueError) as exc:
+            return f"Não consegui registrar: {html.escape(str(exc))}"
+        self._last_refresh = time.monotonic()
+
+        h = html.escape(self.engine.teams[m.home_team].name)
+        a = html.escape(self.engine.teams[m.away_team].name)
+        out = f"✅ <b>{m.match_id}</b>: {h} <b>{hg}-{ag}</b> {a} registrado."
+        if pen:
+            out += f"\n🥅 Pênaltis: avança <b>{html.escape(self.engine.teams[pen].name)}</b>."
+        elif hg == ag and match.phase is not Phase.GROUP_STAGE:
+            out += (
+                "\n⚠️ Empate em mata-mata sem <code>pen &lt;time&gt;</code>: "
+                "o modelo usará o favorito para quem avança."
+            )
+        return out
 
     def _briefing_for(self, target: date) -> list[str]:
         try:
@@ -225,8 +310,15 @@ class Bot:
         if self.allowed_chats and chat_id not in self.allowed_chats:
             self._reply(chat_id, "🔒 Bot privado da família Schiavoni.")
             return
+        text = message["text"]
+        if _normalize(text).lstrip().startswith("/resultado"):
+            if chat_id not in self.admin_chats:
+                self._reply(chat_id, "🔒 Só admin pode atualizar resultados.")
+                return
+            self._reply(chat_id, self._update_result(text))
+            return
         try:
-            replies = self.answer(message["text"])
+            replies = self.answer(text)
         except Exception as exc:
             print(f"erro respondendo a {message['text']!r}: {exc}", flush=True)
             replies = ["⚠️ Deu erro aqui do meu lado. Tente de novo em instantes."]
@@ -251,7 +343,13 @@ def main() -> int:
         "TELEGRAM_ALLOWED_CHATS", os.environ.get("TELEGRAM_CHAT_ID", "")
     )
     allowed = {int(c) for c in raw.split(",") if c.strip()}
-    Bot(token, allowed).run()
+    # Admins de ESCRITA (/resultado): default = TELEGRAM_CHAT_ID. Nunca vazio
+    # à toa — um conjunto vazio aqui significaria "ninguém pode atualizar".
+    admin_raw = os.environ.get(
+        "TELEGRAM_ADMIN_CHATS", os.environ.get("TELEGRAM_CHAT_ID", "")
+    )
+    admins = {int(c) for c in admin_raw.split(",") if c.strip()}
+    Bot(token, allowed, admins).run()
     return 0
 
 

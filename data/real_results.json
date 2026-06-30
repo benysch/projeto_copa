@@ -14,8 +14,8 @@
   "K11": [1, 1], "K12": [1, 3], "K21": [5, 0], "K22": [1, 0], "K31": [0, 0], "K32": [3, 1],
   "L11": [4, 2], "L12": [1, 0], "L21": [0, 0], "L22": [0, 1], "L31": [0, 2], "L32": [2, 1],
 
-  "_knockout_comment": "32-avos já disputados (m73=2A x 2B, m74=1E x 3D, m76=1C x 2F). m74 Alemanha 1-1 Paraguai foi decidido nos pênaltis (Paraguai avançou) — o placar real é 1-1; o modelo não infere o vencedor dos pênaltis pelo placar.",
+  "_knockout_comment": "32-avos já disputados (m73=2A x 2B, m74=1E x 3D, m76=1C x 2F). Valor [casa,fora] ou [casa,fora,vencedor_penaltis] quando empate decidido nos pênaltis. m74 Alemanha 1-1 Paraguai -> Paraguai avançou nos pênaltis.",
   "m73": [0, 1],
-  "m74": [1, 1],
+  "m74": [1, 1, "PAR"],
   "m76": [2, 1]
 }

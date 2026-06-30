@@ -175,12 +175,15 @@ _PHASE_OF = {
 }
 
 
-def _winner_loser(match: Match) -> tuple[str, str]:
+def _winner_loser(
+    match: Match, penalty_winners: dict[str, str] | None = None
+) -> tuple[str, str]:
     """(vencedor, perdedor) de um jogo eliminatório.
 
     Usa o resultado REAL quando disponível; em empate no tempo normal (decidido
-    nos pênaltis), recorre ao favorito do modelo como aproximação. Caso contrário,
-    usa o vencedor previsto.
+    nos pênaltis), usa o vencedor dos pênaltis informado (`penalty_winners`) e,
+    em falta dele, recorre ao favorito do modelo como aproximação. Caso não haja
+    resultado real, usa o vencedor previsto.
     """
     other = lambda w: match.away_team if w == match.home_team else match.home_team
     if match.real_score is not None:
@@ -189,8 +192,8 @@ def _winner_loser(match: Match) -> tuple[str, str]:
             return match.home_team, match.away_team
         if s.away_goals > s.home_goals:
             return match.away_team, match.home_team
-        # Empate -> pênaltis: sem o vencedor no placar, usa o favorito do modelo.
-        w = match.prediction.expected_winner
+        # Empate -> pênaltis: usa o vencedor informado; senão, o favorito.
+        w = (penalty_winners or {}).get(match.match_id) or match.prediction.expected_winner
         return w, other(w)
     w = match.prediction.expected_winner
     return w, other(w)
@@ -201,6 +204,7 @@ def simulate_knockouts(
     teams: dict[str, Team],
     params: ModelParams = DEFAULT_PARAMS,
     real_results: dict[str, tuple[int, int]] | None = None,
+    penalty_winners: dict[str, str] | None = None,
 ) -> dict[Phase, list[Match]]:
     """Prevê (ou aplica resultados reais de) todas as fases eliminatórias.
 
@@ -208,9 +212,12 @@ def simulate_knockouts(
     jogos já disputados usa-se o placar REAL para decidir quem avança; os restantes
     são previstos em modo `knockout=True`. Assim os resultados reais PROPAGAM-se
     pelas fases seguintes (quem realmente venceu segue para a ronda seguinte).
-    A previsão é sempre calculada também, para exibir confiança/probabilidades.
+    `penalty_winners` (match_id -> team_id) resolve quem avança quando o jogo real
+    terminou empatado e foi decidido nos pênaltis. A previsão é sempre calculada
+    também, para exibir confiança/probabilidades.
     """
     real_results = real_results or {}
+    penalty_winners = penalty_winners or {}
 
     def fill(matches: list[Match]) -> None:
         for m in matches:
@@ -228,7 +235,7 @@ def simulate_knockouts(
     # Resultados por jogo: número -> (vencedor, perdedor).
     outcomes: dict[int, tuple[str, str]] = {}
     for m in round_of_32:
-        outcomes[int(m.match_id[1:])] = _winner_loser(m)
+        outcomes[int(m.match_id[1:])] = _winner_loser(m, penalty_winners)
 
     def resolve_ref(ref: str) -> str:
         num = int(ref[1:])
@@ -247,7 +254,7 @@ def simulate_knockouts(
         ]
         fill(matches)
         for m in matches:
-            outcomes[int(m.match_id[1:])] = _winner_loser(m)
+            outcomes[int(m.match_id[1:])] = _winner_loser(m, penalty_winners)
         rounds[phase] = matches
 
     # Disputa de 3º lugar e final.
@@ -263,7 +270,7 @@ def simulate_knockouts(
             kickoff_utc=KNOCKOUT_KICKOFFS.get(num),
         )
         fill([m])
-        outcomes[num] = _winner_loser(m)
+        outcomes[num] = _winner_loser(m, penalty_winners)
         rounds[phase] = [m]
 
     return rounds

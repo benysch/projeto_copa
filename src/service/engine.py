@@ -65,6 +65,9 @@ class PredictionEngine:
         self.standings: GroupStandings | None = None
         self.rounds: dict[Phase, list[Match]] = {}
         self._manual_results: dict[str, tuple[int, int]] = {}
+        # Vencedor dos pênaltis em eliminatórias que terminaram empatadas
+        # (match_id -> team_id): resolve quem avança quando o placar é igual.
+        self._penalty_winners: dict[str, str] = {}
         self._base_elos: dict[str, float] = {}
         self._base_forms: dict[str, float] = {}
         self._last_provider_results: dict[str, tuple[int, int]] = {}
@@ -88,7 +91,9 @@ class PredictionEngine:
         # Resultados reais persistidos em disco têm prioridade sobre o provedor
         # ao vivo (que anda instável): a Copa real fica refletida mesmo offline.
         if self.load_real_results:
-            self._manual_results.update(self._load_persisted_results())
+            results, penalties = self._load_persisted_results()
+            self._manual_results.update(results)
+            self._penalty_winners.update(penalties)
         # Snapshot dos ratings pré-torneio: âncora da recalibração idempotente.
         self._base_elos = {tid: t.elo for tid, t in self.teams.items()}
         self._base_forms = {tid: t.form_modifier for tid, t in self.teams.items()}
@@ -108,23 +113,31 @@ class PredictionEngine:
     _RESULTS_FILE = Path(__file__).resolve().parents[2] / "data" / "real_results.json"
 
     @classmethod
-    def _load_persisted_results(cls) -> dict[str, tuple[int, int]]:
-        """Lê `data/real_results.json` -> {match_id: (gols_casa, gols_fora)}.
+    def _load_persisted_results(
+        cls,
+    ) -> tuple[dict[str, tuple[int, int]], dict[str, str]]:
+        """Lê `data/real_results.json`.
 
-        Tolera ausência/erro do ficheiro (devolve vazio). Chaves com prefixo
-        '_' (ex.: '_comment') são ignoradas.
+        Devolve `(results, penalty_winners)`: `results` mapeia match_id ->
+        (gols_casa, gols_fora); `penalty_winners` mapeia match_id -> team_id quando
+        o valor traz um 3º elemento (vencedor dos pênaltis num empate). Tolera
+        ausência/erro do ficheiro (devolve vazios). Chaves com prefixo '_' (ex.:
+        '_comment') são ignoradas.
         """
         try:
             raw = json.loads(cls._RESULTS_FILE.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            return {}
-        out: dict[str, tuple[int, int]] = {}
+            return {}, {}
+        results: dict[str, tuple[int, int]] = {}
+        penalties: dict[str, str] = {}
         for mid, score in raw.items():
             if mid.startswith("_") or not isinstance(score, (list, tuple)):
                 continue
-            if len(score) == 2:
-                out[mid] = (int(score[0]), int(score[1]))
-        return out
+            if len(score) >= 2:
+                results[mid] = (int(score[0]), int(score[1]))
+            if len(score) >= 3 and score[2]:
+                penalties[mid] = str(score[2])
+        return results, penalties
 
     def refresh(self) -> None:
         """Reaplica os resultados conhecidos e recalcula todas as fases."""
@@ -159,7 +172,8 @@ class PredictionEngine:
         self.standings = compute_all_standings(self.group_matches, self.teams)
         r32 = build_round_of_32(self.standings, self.teams)
         self.rounds = simulate_knockouts(
-            r32, self.teams, self.params, real_results=results
+            r32, self.teams, self.params, real_results=results,
+            penalty_winners=self._penalty_winners,
         )
 
         # Resultados reais das eliminatórias também recalibram o Elo; as fases
@@ -169,7 +183,8 @@ class PredictionEngine:
         if self.recalibrate_elo and self._recalibrate_knockouts():
             r32 = build_round_of_32(self.standings, self.teams)
             self.rounds = simulate_knockouts(
-                r32, self.teams, self.params, real_results=results
+                r32, self.teams, self.params, real_results=results,
+                penalty_winners=self._penalty_winners,
             )
 
     def _fetch_results_safe(self) -> dict[str, tuple[int, int]]:
@@ -284,14 +299,56 @@ class PredictionEngine:
             out["penalty_winner"] = home.name if pick["penalty_winner_home"] else away.name
         return out
 
-    def update_real_score(self, match_id: str, home_goals: int, away_goals: int) -> Match:
-        """Insere/atualiza um resultado real e recalcula as fases seguintes."""
-        self._manual_results[match_id] = (int(home_goals), int(away_goals))
-        self.refresh()
+    def update_real_score(
+        self,
+        match_id: str,
+        home_goals: int,
+        away_goals: int,
+        penalty_winner: str | None = None,
+        persist: bool = False,
+    ) -> Match:
+        """Insere/atualiza um resultado real e recalcula as fases seguintes.
+
+        `penalty_winner` (team_id) define quem avança quando uma eliminatória
+        terminou empatada (decisão nos pênaltis). `persist=True` grava o resultado
+        em `data/real_results.json` para sobreviver a reinícios e ser lido pelo
+        cron/bot. Levanta `KeyError` se o match_id não existe (e nada é alterado).
+        """
         match = self._find_match(match_id)
         if match is None:
             raise KeyError(f"Partida desconhecida: {match_id}")
-        return match
+        if penalty_winner is not None and penalty_winner not in (
+            match.home_team, match.away_team
+        ):
+            raise ValueError(
+                f"Vencedor dos pênaltis '{penalty_winner}' não joga em {match_id}."
+            )
+        self._manual_results[match_id] = (int(home_goals), int(away_goals))
+        if penalty_winner is not None:
+            self._penalty_winners[match_id] = penalty_winner
+        else:
+            self._penalty_winners.pop(match_id, None)
+        if persist:
+            self._persist_result(match_id, int(home_goals), int(away_goals), penalty_winner)
+        self.refresh()
+        return self._find_match(match_id)
+
+    def _persist_result(
+        self, match_id: str, home_goals: int, away_goals: int,
+        penalty_winner: str | None = None,
+    ) -> None:
+        """Grava (merge) um resultado em `data/real_results.json`, preservando o resto."""
+        try:
+            raw = json.loads(self._RESULTS_FILE.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            raw = {}
+        value: list = [home_goals, away_goals]
+        if penalty_winner is not None:
+            value.append(penalty_winner)
+        raw[match_id] = value
+        self._RESULTS_FILE.write_text(
+            json.dumps(raw, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
 
     def probabilities(self, n_sims: int = 10_000, seed: int | None = None) -> MonteCarloResult:
         """Probabilidades de avanço/título por seleção (Monte Carlo).
