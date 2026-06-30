@@ -38,9 +38,26 @@ import requests
 from .data.calendar import parse_kickoff
 from .data.providers import build_provider
 from .model import bolao
+from .model.bracket import (
+    FINAL,
+    QUARTER_FINALS,
+    ROUND_OF_16,
+    SEMI_FINALS,
+    THIRD_PLACE,
+)
 from .model.schemas import Match, Phase
 from .model.simulator import expected_goals, score_matrix
 from .service.engine import PredictionEngine
+
+# Jogo eliminatório -> refs (Wnn/Lnn) dos jogos que definem os seus dois
+# participantes. Permite saber se o confronto JÁ É REAL (alimentadores
+# disputados) ou ainda é projetado pelo modelo.
+_KO_FEEDERS: dict[int, tuple[str, str]] = {
+    num: (home_ref, away_ref)
+    for num, home_ref, away_ref in (
+        *ROUND_OF_16, *QUARTER_FINALS, *SEMI_FINALS, THIRD_PLACE, FINAL,
+    )
+}
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _TZ = ZoneInfo("America/Sao_Paulo")
@@ -92,6 +109,27 @@ def matches_on_local_date(engine: PredictionEngine, target: date) -> list[Match]
     return [m for _, m in selected]
 
 
+def confronto_confirmado(engine: PredictionEngine, m: Match) -> bool:
+    """True se os DOIS participantes do jogo já estão definidos por jogos reais.
+
+    Grupos: sempre. 32-avos: quando a fase de grupos terminou (a classificação
+    fixa quem joga). Demais fases: quando os dois jogos alimentadores (Wnn/Lnn)
+    já foram disputados. Caso contrário, o confronto ainda é projetado.
+    """
+    if m.phase is Phase.GROUP_STAGE:
+        return True
+    if m.phase is Phase.ROUND_OF_32:
+        return all(gm.is_finished for gm in engine.group_matches)
+    feeders = _KO_FEEDERS.get(int(m.match_id[1:]))
+    if not feeders:
+        return False
+    by_id = {km.match_id: km for ms in engine.rounds.values() for km in ms}
+    return all(
+        (fed := by_id.get(f"m{ref[1:]}")) is not None and fed.is_finished
+        for ref in feeders
+    )
+
+
 def _format_pick(pick: dict, home: str, away: str) -> str:
     h, a = pick["score"]
     out = f"<b>{h}-{a}</b> ({pick['expected_points']:.2f} pts)"
@@ -115,7 +153,7 @@ def format_match(engine: PredictionEngine, m: Match) -> str:
             where += f" · rodada {m.matchday}"
 
     lines = [f"🕐 {kickoff} · {where}", f"<b>{home} x {away}</b>"]
-    if m.phase is not Phase.GROUP_STAGE and not m.is_finished:
+    if not m.is_finished and not confronto_confirmado(engine, m):
         lines[-1] += " <i>(confronto previsto pelo modelo)</i>"
 
     if m.is_finished:
