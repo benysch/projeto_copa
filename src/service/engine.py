@@ -12,8 +12,11 @@ Fluxo:
 
 from __future__ import annotations
 
+import json
 import math
+import os
 from datetime import date, timedelta
+from pathlib import Path
 
 from ..data.calendar import parse_kickoff
 from ..data.polymarket import implied_title_probabilities
@@ -43,11 +46,20 @@ class PredictionEngine:
         params: ModelParams = DEFAULT_PARAMS,
         recalibrate_elo: bool = True,
         elo_k: float = elo_model.WORLD_CUP_K,
+        load_real_results: bool | None = None,
     ):
         self.provider = provider or StaticProvider()
         self.params = params
         self.recalibrate_elo = recalibrate_elo
         self.elo_k = elo_k
+        # Carregar os resultados REAIS persistidos (data/real_results.json)?
+        # Default: liga só se WC2026_REAL_RESULTS=1 (produção via .env), para
+        # os testes de estado limpo (pré-Copa) não serem afetados.
+        self.load_real_results = (
+            os.environ.get("WC2026_REAL_RESULTS", "0") == "1"
+            if load_real_results is None
+            else load_real_results
+        )
         self.teams: dict[str, Team] = {}
         self.group_matches: list[Match] = []
         self.standings: GroupStandings | None = None
@@ -73,6 +85,10 @@ class PredictionEngine:
         self.teams = self.provider.load_teams()
         self.group_matches = self.provider.load_group_fixtures()
         self._apply_placeholder_resolutions()
+        # Resultados reais persistidos em disco têm prioridade sobre o provedor
+        # ao vivo (que anda instável): a Copa real fica refletida mesmo offline.
+        if self.load_real_results:
+            self._manual_results.update(self._load_persisted_results())
         # Snapshot dos ratings pré-torneio: âncora da recalibração idempotente.
         self._base_elos = {tid: t.elo for tid, t in self.teams.items()}
         self._base_forms = {tid: t.form_modifier for tid, t in self.teams.items()}
@@ -80,9 +96,35 @@ class PredictionEngine:
         self.refresh()
 
     def reset(self) -> None:
-        """Descarta os updates manuais e recarrega do provedor (estado limpo)."""
+        """Descarta os updates manuais e recarrega do provedor (estado limpo).
+
+        Os resultados reais persistidos em `data/real_results.json` são
+        recarregados pelo `reload()` seguinte (são dados oficiais, não ad-hoc).
+        """
         self._manual_results.clear()
         self.reload()
+
+    # Ficheiro com os resultados REAIS já conhecidos (fonte da verdade offline).
+    _RESULTS_FILE = Path(__file__).resolve().parents[2] / "data" / "real_results.json"
+
+    @classmethod
+    def _load_persisted_results(cls) -> dict[str, tuple[int, int]]:
+        """Lê `data/real_results.json` -> {match_id: (gols_casa, gols_fora)}.
+
+        Tolera ausência/erro do ficheiro (devolve vazio). Chaves com prefixo
+        '_' (ex.: '_comment') são ignoradas.
+        """
+        try:
+            raw = json.loads(cls._RESULTS_FILE.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        out: dict[str, tuple[int, int]] = {}
+        for mid, score in raw.items():
+            if mid.startswith("_") or not isinstance(score, (list, tuple)):
+                continue
+            if len(score) == 2:
+                out[mid] = (int(score[0]), int(score[1]))
+        return out
 
     def refresh(self) -> None:
         """Reaplica os resultados conhecidos e recalcula todas as fases."""

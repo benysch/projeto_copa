@@ -112,7 +112,7 @@ def _rank_group(
 def _assign_thirds_robust(thirds: list[_Third]) -> dict[str, str]:
     """Atribui terceiros aos slots; usa fallback se a combinação não casar."""
     try:
-        return assign_third_slots(thirds)
+        return assign_third_slots(thirds, use_official=False)
     except ValueError:
         slots = [away for _, _, away in ROUND_OF_32 if away.startswith("3")]
         return {slot: t.team_id for slot, t in zip(slots, thirds)}

@@ -87,7 +87,7 @@ def _flags(
 def _assign_thirds(thirds: list[TeamRecord]) -> dict[str, str]:
     """Atribui terceiros aos slots; fallback se a combinação não casar."""
     try:
-        return assign_third_slots(thirds)
+        return assign_third_slots(thirds, use_official=False)
     except ValueError:
         slots = [away for _, _, away in ROUND_OF_32 if away.startswith("3")]
         return {slot: r.team_id for slot, r in zip(slots, thirds)}

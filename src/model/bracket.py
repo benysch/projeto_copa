@@ -62,19 +62,48 @@ def _third_slot_groups(slot: str) -> set[str]:
     return set(slot[1:].split("/"))
 
 
+# Tabela OFICIAL FIFA de atribuição dos 8 terceiros aos slots de terceiros,
+# por combinação de grupos qualificados (chave = frozenset dos 8 grupos ->
+# {slot: grupo}). O emparelhamento por backtracking encontra UMA atribuição
+# legal, mas a FIFA usa uma tabela fixa; preenche-se aqui a combinação já
+# realizada (Copa 2026) para reproduzir o chaveamento REAL. Combinações não
+# tabeladas recorrem ao backtracking.
+OFFICIAL_THIRD_ASSIGNMENT: dict[frozenset, dict[str, str]] = {
+    # 2026: terceiros qualificados vêm dos grupos B,D,E,F,I,J,K,L.
+    frozenset("BDEFIJKL"): {
+        "3A/B/C/D/F": "D", "3C/D/F/G/H": "F", "3C/E/F/H/I": "E",
+        "3E/H/I/J/K": "K", "3B/E/F/I/J": "B", "3A/E/H/I/J": "I",
+        "3E/F/G/I/J": "J", "3D/E/I/J/L": "L",
+    },
+}
+
+
 def assign_third_slots(
     third_records: list[TeamRecord],
+    use_official: bool = True,
 ) -> dict[str, str]:
     """Mapeia cada slot de terceiros -> team_id, respeitando os grupos permitidos.
 
     Resolve por backtracking um emparelhamento perfeito entre os 8 terceiros
     qualificados e os 8 slots; é determinístico (slots e candidatos em ordem
     fixa) e devolve uma atribuição legal do chaveamento.
+
+    `use_official=True` (default, usado no chaveamento REAL) prefere a tabela
+    oficial FIFA quando a combinação de grupos está tabelada. O Monte Carlo de
+    cenários passa `use_official=False` para manter o emparelhamento genérico
+    em torneios hipotéticos (não enviesar as simulações por uma única combinação
+    tabelada).
     """
     slots = [away for _, _, away in ROUND_OF_32 if away.startswith("3")]
     allowed = {slot: _third_slot_groups(slot) for slot in slots}
     thirds_by_group = {r.group: r.team_id for r in third_records}
     qualified_groups = list(thirds_by_group.keys())
+
+    # Atribuição oficial FIFA quando a combinação de grupos está tabelada.
+    if use_official:
+        official = OFFICIAL_THIRD_ASSIGNMENT.get(frozenset(thirds_by_group))
+        if official:
+            return {slot: thirds_by_group[grp] for slot, grp in official.items()}
 
     assignment: dict[str, str] = {}
     used: set[str] = set()
